@@ -15,14 +15,14 @@ export type TFilters = Map<string, Set<String>>
 export type TFilterFillData = { name: string; email: string }
 interface ICommitGraphFilterButtonProps {
   readonly filters: TFilters
-  readonly filtersFillData: Record<string, Array<TFilterFillData>>
+  readonly filtersFillData: Record<string, ReadonlyArray<TFilterFillData>>
   readonly onFilterUpdate: (filters: TFilters) => void
 }
 interface ICommitGraphFilterButtonState {
   readonly isFilterOptionsOpen: boolean
   readonly isAuthorFilterChecked: boolean
   readonly hasFilterOptionsMounted: boolean
-  readonly activeFilterData: TFilterFillData[]
+  readonly activeFilterData: ReadonlyArray<TFilterFillData>
 }
 export class CommitGraphFilterButton extends React.Component<
   ICommitGraphFilterButtonProps,
@@ -78,7 +78,9 @@ export class CommitGraphFilterButton extends React.Component<
     event: React.FormEvent<HTMLInputElement>,
     key: string
   ) => {
-    if (!key) return
+    if (!key) {
+      return
+    }
     const checked = event.currentTarget.checked
 
     const newFilters = new Map(this.props.filters)
@@ -106,6 +108,12 @@ export class CommitGraphFilterButton extends React.Component<
     this.setState({
       hasFilterOptionsMounted: false,
     })
+  }
+
+  private onAuthorSubFilterChange = (email: string) => {
+    return (event: React.FormEvent<HTMLInputElement>) => {
+      this.onAuthorSubFilterSelect(event, email)
+    }
   }
 
   private renderFilterOptions() {
@@ -157,10 +165,6 @@ export class CommitGraphFilterButton extends React.Component<
     )
   }
 
-  public componentDidMount(): void {
-    console.log(this.props.filtersFillData)
-  }
-
   private renderSubFilterOptions() {
     return (
       <Popover
@@ -192,7 +196,7 @@ export class CommitGraphFilterButton extends React.Component<
                     ? CheckboxValue.On
                     : CheckboxValue.Off
                 }
-                onChange={event => this.onAuthorSubFilterSelect(event, email)}
+                onChange={this.onAuthorSubFilterChange(email)}
                 label={name}
               />
             )
@@ -211,7 +215,6 @@ export class CommitGraphFilterButton extends React.Component<
     const authorFilterSet = this.props.filters.get(AUTHOR_FILTER_KEY)
     const activeFiltersCount = authorFilterSet ? authorFilterSet.size : 0
     const hasActiveFilters = authorFilterSet ? activeFiltersCount > 0 : false
-    console.log({ hasActiveFilters })
     const buttonTextLabel = `Filter Options ${
       hasActiveFilters ? `(${activeFiltersCount} applied)` : ''
     }`
