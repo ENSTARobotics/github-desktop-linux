@@ -150,7 +150,7 @@ import {
   ICopilotResolutionSummary,
 } from '../../lib/copilot-conflict-resolution'
 import { WorktreeEntry } from '../../models/worktree'
-import { TFilters } from '../history/commit-graph-filter-button'
+import { TFilters } from '../history/commit-graph-sidebar'
 
 /**
  * An error handler function.
@@ -296,6 +296,12 @@ export class Dispatcher {
     repository: Repository
   ): Promise<void> {
     return this.appStore._commitGraph_loadNextCommitBatch(repository)
+  }
+
+  public commitGraph_loadAuthorFilterOptions(
+    repository: Repository
+  ): Promise<void> {
+    return this.appStore._commitGraph_loadAuthorFilterOptions(repository)
   }
 
   /** Update the commit search filter text. */

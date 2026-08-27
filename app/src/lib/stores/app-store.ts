@@ -488,7 +488,7 @@ import {
 import { resolveWithin } from '../path'
 import { WorktreeEntry } from '../../models/worktree'
 import type { Model } from '@github/copilot-sdk/dist/generated/rpc'
-import { TFilters } from '../../ui/history/commit-graph-filter-button'
+import { TFilters } from '../../ui/history/commit-graph-sidebar'
 
 const LastSelectedRepositoryIDKey = 'last-selected-repository-id'
 
@@ -2189,7 +2189,10 @@ export class AppStore extends TypedBaseStore<IAppState> {
     if (queryTextLowercase === undefined) {
       queryTextLowercase = state.compareState.commitSearchQuery.toLowerCase()
     }
-    const isSearching = !!queryTextLowercase
+    const isSearching = Boolean(
+      queryTextLowercase ||
+        (authorFiltersLowercase && authorFiltersLowercase.length > 0)
+    )
 
     const tip = state.branchesState.tip
 
@@ -2459,6 +2462,30 @@ export class AppStore extends TypedBaseStore<IAppState> {
     }
   }
 
+  /** This shouldn't be called directly. See `Dispatcher`. */
+  public async _commitGraph_loadAuthorFilterOptions(
+    repository: Repository
+  ): Promise<void> {
+    const gitStore = this.gitStoreCache.get(repository)
+    const authors = await gitStore.commitGraph_loadAuthorFilterOptions()
+
+    if (authors === null) {
+      return
+    }
+
+    const state = this.repositoryStateCache.get(repository)
+
+    if (state.compareState.commitGraphAuthorFilterOptions === authors) {
+      return
+    }
+
+    this.repositoryStateCache.updateCompareState(repository, () => ({
+      commitGraphAuthorFilterOptions: authors,
+    }))
+
+    this.emitUpdate()
+  }
+
   private commitIsIncluded(
     commit: Commit | undefined,
     filterTextLowerCase: string
@@ -2497,10 +2524,11 @@ export class AppStore extends TypedBaseStore<IAppState> {
   ): Promise<void> {
     const state = this.repositoryStateCache.get(repository)
     const compareState = state.compareState
-    const authorFiltersSet = filters && filters.get('author')
-    const authorFiltersLowercase = authorFiltersSet
-      ? Array.from(authorFiltersSet).map(item => item.toLowerCase())
+    const activeAuthorEmailsSet = filters?.author
+    const activeAuthorEmailsLowercase = activeAuthorEmailsSet
+      ? Array.from(activeAuthorEmailsSet).map(item => item.toLowerCase())
       : []
+
     const isIncrementalSearch = query
       ? query.startsWith(compareState.commitSearchQuery)
       : false
@@ -2517,6 +2545,7 @@ export class AppStore extends TypedBaseStore<IAppState> {
       : compareState.allHistoryCommitSHAs
 
     const queryTextLowercase = query.toLowerCase()
+
     const baseFilteredCommitSHAs = queryTextLowercase
       ? candidateCommitSHAs.filter(sha =>
           this.commitIsIncluded(state.commitLookup.get(sha), queryTextLowercase)
@@ -2524,10 +2553,10 @@ export class AppStore extends TypedBaseStore<IAppState> {
       : candidateCommitSHAs
 
     const newFilteredCommitSHAs =
-      authorFiltersLowercase.length > 0
+      activeAuthorEmailsLowercase.length > 0
         ? baseFilteredCommitSHAs.filter(sha => {
             const commit = state.commitLookup.get(sha)
-            return authorFiltersLowercase.some(filter =>
+            return activeAuthorEmailsLowercase.some(filter =>
               this.commitIsIncludedByAuthorFilter(commit, filter)
             )
           })
@@ -2543,7 +2572,7 @@ export class AppStore extends TypedBaseStore<IAppState> {
         repository,
         newFilteredCommitSHAs.length,
         queryTextLowercase,
-        authorFiltersLowercase
+        activeAuthorEmailsLowercase
       )
       await this.currentCommitFilterPromise
       this.currentCommitFilterPromise = null
@@ -4799,12 +4828,20 @@ export class AppStore extends TypedBaseStore<IAppState> {
       return assertNever(section, `Unknown section: ${section}`)
     }
 
+    // Keep the author filter options fresh once they've been loaded
+    const authorFilterOptionsRefresh =
+      this.repositoryStateCache.get(repository).compareState
+        .commitGraphAuthorFilterOptions !== null
+        ? this._commitGraph_loadAuthorFilterOptions(repository)
+        : Promise.resolve()
+
     await Promise.all([
       gitStore.updateLastFetched(),
       gitStore.loadStashEntries(),
       this._refreshAuthor(repository),
       this._refreshWorktrees(repository),
       refreshSectionPromise,
+      authorFilterOptionsRefresh,
     ])
 
     await gitStore.refreshTags()
