@@ -1,6 +1,7 @@
 import * as React from 'react'
 
 import classNames from 'classnames'
+import debounce from 'lodash/debounce'
 import memoizeOne from 'memoize-one'
 import {
   ICompareState,
@@ -25,7 +26,6 @@ import { Repository } from '../../models/repository'
 import { defaultErrorHandler, Dispatcher } from '../dispatcher'
 import { Button } from '../lib/button'
 import { Checkbox, CheckboxValue } from '../lib/checkbox'
-import { FancyTextBox } from '../lib/fancy-text-box'
 import { KeyboardInsertionData } from '../lib/list'
 import { ThrottledScheduler } from '../lib/throttled-scheduler'
 import { startTimer } from '../lib/timing'
@@ -34,6 +34,7 @@ import * as octicons from '../octicons/octicons.generated'
 import { Resizable } from '../resizable'
 import { CommitGraphCommitListItem } from './commit-graph-commit-list-item'
 import { CommitGraphFilterButton } from './commit-graph-filter-button'
+import { CommitGraphFilterTextBox } from './commit-graph-filter-text-box'
 import {
   commitGraph_buildRows,
   commitGraph_getColor,
@@ -42,7 +43,6 @@ import {
 } from './commit-graph-model'
 import type { ICommitListItemRenderProps } from './commit-list'
 import { CommitList } from './commit-list'
-import debounce from 'lodash/debounce'
 
 type CommitGraphBranchGroup =
   | 'local'
@@ -652,7 +652,7 @@ export class CommitGraphSidebar extends React.Component<
                   onActiveAuthorEmailsChange={this.onActiveAuthorEmailsChange}
                 />
               </span>
-              <FancyTextBox
+              <CommitGraphFilterTextBox
                 ariaLabel="Commit filter"
                 type="search"
                 symbol={
@@ -660,8 +660,10 @@ export class CommitGraphSidebar extends React.Component<
                 }
                 symbolClassName={this.state.isSearching ? 'spin' : undefined}
                 placeholder={__DARWIN__ ? 'Search Commits' : 'Search commits'}
-                value={this.state.searchQuery}
-                onValueChanged={this.onCommitSearchQueryChanged}
+                authorFilterOptions={
+                  this.props.compareState.commitGraphAuthorFilterOptions
+                }
+                onSearchSubmitted={this.onCommitSearchSubmitted}
               />
             </div>
           </div>
@@ -1425,13 +1427,24 @@ export class CommitGraphSidebar extends React.Component<
     })
   }
 
-  private onCommitSearchQueryChanged = async (text: string) => {
-    this.setState({ searchQuery: text })
+  private onCommitSearchSubmitted = async (
+    text: string,
+    emailSet: Set<string>
+  ) => {
+    this.setState({
+      searchQuery: text,
+    })
 
-    await this.onCommitQuery(text, this.state.filters)
+    const newFilters = {
+      ...this.state.filters,
+      author: emailSet,
+    }
+
+    await this.onCommitQuery(text, newFilters)
   }
+
   private onCommitSearchFiltersChanged = async (filters: TFilters) => {
-    await this.onCommitQuery(this.props.compareState.commitSearchQuery, filters)
+    await this.onCommitQuery(this.state.searchQuery, filters)
   }
 
   private onCreateTag = (targetCommitSha: string) => {
