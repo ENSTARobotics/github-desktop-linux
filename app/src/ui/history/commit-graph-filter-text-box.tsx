@@ -1,18 +1,58 @@
-import * as React from 'react'
-import { FancyTextBox, IFancyTextBoxProps } from '../lib/fancy-text-box'
-import { TextBox } from '../lib/text-box'
 import classNames from 'classnames'
-import { TAuthorFilterOption } from '../../lib/app-state'
+import memoizeOne from 'memoize-one'
+import * as React from 'react'
+import { Account } from '../../models/account'
+import { IAvatarUser } from '../../models/avatar'
+import { Avatar } from '../lib/avatar'
+import { FancyTextBox, IFancyTextBoxProps } from '../lib/fancy-text-box'
+import { findNextSelectableRow, List } from '../lib/list'
+import {
+  Popover,
+  PopoverAnchorPosition,
+  PopoverDecoration,
+} from '../lib/popover'
+import { TextBox } from '../lib/text-box'
 
 interface ICommitGraphFilterTextBoxProps
   extends Omit<IFancyTextBoxProps, 'value' | 'onValueChanged'> {
-  readonly authorFilterOptions: ReadonlyArray<TAuthorFilterOption> | null
+  readonly accounts: ReadonlyArray<Account>
+  readonly filterAuthors: ReadonlyArray<IAvatarUser> | null
   readonly onSearchSubmitted: (text: string, emailSet: Set<string>) => void
 }
 
 interface ICommitGraphFilterTextBoxState {
   readonly value: string
+
+  readonly caretOffset: number | null
+
+  /**
+   * Whether the autocomplete has been dismissed. Set when the caret is
+   * moved away from the token being edited or when the user dismisses the
+   * popup (Escape) and reset whenever the user edits the text.
+   *
+   * This is the single bit of memory which distinguishes "the caret is at
+   * the end of an author token because the user just edited it"
+   */
+  readonly isAutocompleteDismissed: boolean
+
+  readonly autocompleteAnchorElement: HTMLSpanElement | null
+  readonly selectedAutocompleteRow: number | null
 }
+
+type TAuthorTokenState = 'valid' | 'invalid' | 'pending'
+
+type TFilterToken =
+  | { kind: 'query'; value: string; start: number; end: number }
+  | {
+      kind: 'author'
+      name: string
+      delimiter: string
+      value: string
+      start: number
+      end: number
+      state: TAuthorTokenState
+      isEdited: boolean
+    }
 
 export class CommitGraphFilterTextBox extends React.Component<
   ICommitGraphFilterTextBoxProps,
@@ -20,159 +60,541 @@ export class CommitGraphFilterTextBox extends React.Component<
 > {
   private backdropRef = React.createRef<HTMLDivElement>()
   private inputElement: HTMLInputElement | null = null
+  private textBox: TextBox | null = null
+
+  private pendingCaretOffset: number | null = null
+
+  private readonly getFilterTokens = memoizeOne(
+    (
+      value: string,
+      emailSet: ReadonlySet<string>,
+      caretOffset: number | null
+    ): ReadonlyArray<TFilterToken> =>
+      parseFilterTokens(value, emailSet, caretOffset)
+  )
+
+  private readonly getAutocompleteAuthors = memoizeOne(
+    (
+      authors: ICommitGraphFilterTextBoxProps['filterAuthors'],
+      partial: string
+    ): ReadonlyArray<IAvatarUser> => {
+      if (authors === null) {
+        return []
+      }
+
+      const searchToken = partial.trim().toLowerCase()
+
+      return authors.filter(({ email }) =>
+        email.toLowerCase().includes(searchToken)
+      )
+    }
+  )
+
+  private readonly getEmailSet = memoizeOne(
+    (
+      authors: ICommitGraphFilterTextBoxProps['filterAuthors']
+    ): ReadonlySet<string> => {
+      const emails = (authors ?? []).map(o => o.email.trim().toLowerCase())
+      return new Set(emails)
+    }
+  )
+
+  private get hasClearButton() {
+    return (
+      this.state.value !== '' &&
+      (this.props.type === 'search' || this.props.displayClearButton === true)
+    )
+  }
 
   private get authorEmailSet() {
-    return new Set(
-      (this.props.authorFilterOptions ?? []).map(a =>
-        a.email.trim().toLowerCase()
-      )
+    return this.getEmailSet(this.props.filterAuthors)
+  }
+
+  private get filterTokens() {
+    return this.getFilterTokens(
+      this.state.value,
+      this.authorEmailSet,
+      this.state.caretOffset
+    )
+  }
+
+  private get editedAuthorToken() {
+    return this.filterTokens.find(
+      (token): token is Extract<TFilterToken, { kind: 'author' }> =>
+        token.kind === 'author' && token.isEdited
+    )
+  }
+
+  private get autocompleteAuthors() {
+    const editedAuthorToken = this.editedAuthorToken
+
+    return editedAuthorToken === undefined
+      ? []
+      : this.getAutocompleteAuthors(
+          this.props.filterAuthors,
+          editedAuthorToken.value
+        )
+  }
+
+  private get isAutocompleteVisible() {
+    return (
+      !this.state.isAutocompleteDismissed &&
+      this.state.autocompleteAnchorElement !== null &&
+      this.autocompleteAuthors.length > 0
     )
   }
 
   public constructor(props: ICommitGraphFilterTextBoxProps) {
     super(props)
 
-    this.state = { value: '' }
+    this.state = {
+      value: '',
+      caretOffset: null,
+      isAutocompleteDismissed: false,
+      autocompleteAnchorElement: null,
+      selectedAutocompleteRow: null,
+    }
   }
 
   public componentWillUnmount() {
-    this.detachScrollListener()
+    this.detachInputListeners()
   }
 
   public componentDidUpdate() {
     this.syncBackdropScroll()
+
+    if (this.pendingCaretOffset !== null && this.inputElement !== null) {
+      // This component updates after TextBox component updates so
+      // this runs after TextBox has restored its (now stale) caret
+      // position, overriding it with the current caret position
+      this.inputElement.setSelectionRange(
+        this.pendingCaretOffset,
+        this.pendingCaretOffset
+      )
+
+      // Make sure the TextBox won't restore the stale position on a
+      // subsequent re-render (e.g. when the filter authors arrive
+      // asynchronously).
+      this.textBox?.syncCursorPosition()
+
+      this.pendingCaretOffset = null
+    }
+  }
+
+  /**
+   * Callback ref for the span of the author token currently being edited.
+   * Callback refs run during the commit phase so state updates from here
+   * are flushed synchronously, before paint, which keeps the popover from
+   * ever being rendered without its anchor element.
+   */
+  private onPendingTokenRef = (element: HTMLSpanElement | null) => {
+    if (this.state.autocompleteAnchorElement !== element) {
+      this.setState({ autocompleteAnchorElement: element })
+    }
+  }
+
+  private renderTokens = () => {
+    return this.filterTokens.map((token, tokenIdx) => {
+      if (token.kind === 'query') {
+        return <span key={tokenIdx}>{token.value}</span>
+      }
+
+      return (
+        <span
+          key={tokenIdx}
+          ref={token.isEdited ? this.onPendingTokenRef : null}
+        >
+          <span className="token">
+            {token.name}
+            {token.delimiter}
+          </span>
+          <span className={tokenValueClassNames[token.state]}>
+            {token.value}
+          </span>
+        </span>
+      )
+    })
   }
 
   public render() {
-    const value = this.state.value
-
-    const hasClearButton =
-      value !== '' &&
-      (this.props.type === 'search' || this.props.displayClearButton === true)
+    const showAutocomplete = this.isAutocompleteVisible
 
     return (
-      <div
-        className={classNames('commitGraph-filter-text-box', {
-          'with-clear-button': hasClearButton,
-        })}
-      >
+      <>
         <div
-          className="commitGraph-filter-text-box-backdrop"
-          aria-hidden="true"
-          ref={this.backdropRef}
+          className={classNames('commitGraph-filter-text-box', {
+            'with-clear-button': this.hasClearButton,
+          })}
         >
-          {renderSegments(value, this.authorEmailSet)}
+          <div
+            className="commitGraph-filter-text-box-backdrop"
+            aria-hidden="true"
+            ref={this.backdropRef}
+          >
+            {this.renderTokens()}
+          </div>
+          <FancyTextBox
+            ariaLabel={this.props.ariaLabel}
+            type={this.props.type}
+            symbol={this.props.symbol}
+            symbolClassName={this.props.symbolClassName}
+            placeholder={this.props.placeholder}
+            value={this.state.value}
+            onValueChanged={this.onValueChanged}
+            onEnterPressed={this.onEnterPressed}
+            onRef={this.onTextBoxRef}
+          />
         </div>
-        <FancyTextBox
-          ariaLabel={this.props.ariaLabel}
-          type={this.props.type}
-          symbol={this.props.symbol}
-          symbolClassName={this.props.symbolClassName}
-          placeholder={this.props.placeholder}
-          value={this.state.value}
-          onValueChanged={this.onValueChanged}
-          onEnterPressed={this.onEnterPressed}
-          onRef={this.onTextBoxRef}
+        {showAutocomplete && this.renderAutocompletePopover()}
+      </>
+    )
+  }
+
+  private renderAutocompletePopover = () => {
+    const editedAuthorToken = this.editedAuthorToken
+    return (
+      <Popover
+        anchor={this.state.autocompleteAnchorElement}
+        anchorPosition={PopoverAnchorPosition.BottomLeft}
+        anchorOffset={2}
+        decoration={PopoverDecoration.None}
+        trapFocus={false}
+        isDialog={false}
+        className="autocompletion-popup filter"
+        maxHeight={Math.min(
+          DefaultPopupHeight,
+          RowHeight * this.autocompleteAuthors.length
+        )}
+        minHeight={RowHeight * Math.min(this.autocompleteAuthors.length, 3)}
+      >
+        <List
+          rowCount={this.autocompleteAuthors.length}
+          rowHeight={RowHeight}
+          rowRenderer={this.renderAutocompleteRow}
+          selectedRows={
+            this.state.selectedAutocompleteRow === null
+              ? []
+              : [this.state.selectedAutocompleteRow]
+          }
+          scrollToRow={this.state.selectedAutocompleteRow ?? undefined}
+          onRowMouseDown={this.onAutocompleteRowMouseDown}
+          invalidationProps={editedAuthorToken?.value ?? undefined}
+          shouldDisableTabFocus={true}
         />
-      </div>
+      </Popover>
     )
   }
 
   private onValueChanged = (text: string) => {
     this.setState({
       value: text,
+      caretOffset: this.inputElement?.selectionEnd ?? null,
+      isAutocompleteDismissed: false,
+      selectedAutocompleteRow: null,
     })
 
     if (text === '') {
-      this.submitSearch('')
+      this.submitSearch()
     }
   }
 
-  private onEnterPressed = (text: string) => {
-    this.submitSearch(text)
+  private renderAutocompleteRow = (row: number) => {
+    const author = this.autocompleteAuthors[row]
+
+    if (author === undefined) {
+      return null
+    }
+
+    return (
+      <div className="autocompletion-item">
+        <div className="author-filter">
+          <Avatar user={author} accounts={this.props.accounts} />
+          <div className="author-filter-text">
+            <span className="name">{author.name}</span>
+            <span className="email">{author.email}</span>
+          </div>
+        </div>
+      </div>
+    )
   }
 
-  private submitSearch = (text: string) => {
-    const { query, validEmailSet } = parseSearchQuery(text, this.authorEmailSet)
+  private onEnterPressed = () => {
+    this.submitSearch(this.filterTokens)
+  }
+
+  private submitSearch = (tokens: ReadonlyArray<TFilterToken> = []) => {
+    const { query, validEmailSet } = buildSearchResult(
+      tokens,
+      this.authorEmailSet
+    )
 
     this.props.onSearchSubmitted(query, validEmailSet)
   }
 
-  private onTextBoxRef = (textBox: TextBox | null) => {
-    this.detachScrollListener()
+  private onInputKeyDown = (event: Event) => {
+    if (!(event instanceof KeyboardEvent) || event.isComposing) {
+      return
+    }
 
+    if (!this.isAutocompleteVisible) {
+      return
+    }
+
+    const { selectedAutocompleteRow } = this.state
+
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      // Prevent the input caret from being moved to the start/end of the
+      // text (which would hide the autocomplete) and make sure the TextBox
+      // never sees the key.
+      event.preventDefault()
+      event.stopPropagation()
+
+      const nextRow = findNextSelectableRow(this.autocompleteAuthors.length, {
+        direction: event.key === 'ArrowDown' ? 'down' : 'up',
+        row: selectedAutocompleteRow ?? -1,
+      })
+
+      this.setState({ selectedAutocompleteRow: nextRow })
+    } else if (event.key === 'Enter') {
+      if (selectedAutocompleteRow !== null) {
+        event.preventDefault()
+        event.stopPropagation()
+
+        this.insertCompletion(selectedAutocompleteRow)
+      }
+
+      // With no keyboard-selected row the event is left untouched so that
+      // the TextBox can submit the search.
+    } else if (event.key === 'Escape') {
+      // Close the autocomplete without clearing the input text (the TextBox
+      // would do so otherwise as it is a search input).
+      event.preventDefault()
+      event.stopPropagation()
+
+      this.setState({
+        isAutocompleteDismissed: true,
+        selectedAutocompleteRow: null,
+      })
+    }
+  }
+
+  private insertCompletion(row: number) {
+    const author = this.autocompleteAuthors[row]
+
+    if (author === undefined) {
+      return
+    }
+
+    const editedAuthorToken = this.editedAuthorToken
+
+    if (editedAuthorToken === undefined) {
+      return
+    }
+
+    const inserted = `author:${author.email} `
+
+    const newValue =
+      this.state.value.substring(0, editedAuthorToken.start) +
+      inserted +
+      this.state.value.substring(editedAuthorToken.end)
+
+    const newCaretOffset = editedAuthorToken.start + inserted.length
+
+    this.pendingCaretOffset = newCaretOffset
+
+    this.setState({
+      value: newValue,
+      caretOffset: newCaretOffset,
+      isAutocompleteDismissed: true,
+      selectedAutocompleteRow: null,
+    })
+  }
+
+  private onAutocompleteRowMouseDown = (row: number) => {
+    this.insertCompletion(row)
+
+    window.setTimeout(() => {
+      this.inputElement?.focus()
+    }, 0)
+  }
+
+  private onInputScroll = () => {
+    this.syncBackdropScroll()
+  }
+
+  private onCaretMoved = () => {
+    this.textBox?.syncCursorPosition()
+
+    if (
+      this.state.isAutocompleteDismissed ||
+      this.editedAuthorToken === undefined
+    ) {
+      return
+    }
+
+    const isCollapsedCaretAtTokenEnd =
+      this.inputElement !== null &&
+      this.inputElement.selectionStart === this.inputElement.selectionEnd &&
+      this.inputElement.selectionEnd === this.editedAuthorToken.end
+
+    if (!isCollapsedCaretAtTokenEnd) {
+      this.setState({
+        isAutocompleteDismissed: true,
+        selectedAutocompleteRow: null,
+      })
+    }
+  }
+
+  private onTextBoxRef = (textBox: TextBox | null) => {
+    this.detachInputListeners()
+
+    this.textBox = textBox
     this.inputElement = textBox !== null ? textBox.getInputElement() : null
 
-    if (this.inputElement !== null) {
-      this.inputElement.addEventListener('scroll', this.syncBackdropScroll)
-    }
+    this.attachInputListeners()
 
     if (this.props.onRef && textBox !== null) {
       this.props.onRef(textBox)
     }
   }
 
-  private detachScrollListener() {
+  private attachInputListeners = () => {
     if (this.inputElement !== null) {
-      this.inputElement.removeEventListener('scroll', this.syncBackdropScroll)
+      this.inputElement.addEventListener('scroll', this.onInputScroll)
+      this.inputElement.addEventListener('keyup', this.onCaretMoved)
+      this.inputElement.addEventListener('mouseup', this.onCaretMoved)
+      this.inputElement.addEventListener('select', this.onCaretMoved)
+      this.inputElement.addEventListener('keydown', this.onInputKeyDown, true)
+    }
+  }
+
+  private detachInputListeners = () => {
+    this.textBox = null
+
+    if (this.inputElement !== null) {
+      this.inputElement.removeEventListener('scroll', this.onInputScroll)
+      this.inputElement.removeEventListener('keyup', this.onCaretMoved)
+      this.inputElement.removeEventListener('mouseup', this.onCaretMoved)
+      this.inputElement.removeEventListener('select', this.onCaretMoved)
+      this.inputElement.removeEventListener(
+        'keydown',
+        this.onInputKeyDown,
+        true
+      )
       this.inputElement = null
     }
   }
 
   private syncBackdropScroll = () => {
-    const backdrop = this.backdropRef.current
-
-    if (backdrop === null || this.inputElement === null) {
+    if (this.backdropRef.current === null || this.inputElement === null) {
       return
     }
 
-    backdrop.scrollLeft = this.inputElement.scrollLeft
+    this.backdropRef.current.scrollLeft = this.inputElement.scrollLeft
   }
 }
 
-function renderSegments(text: string, optionSet: ReadonlySet<string>) {
-  const segments = text.split(/(\s+)/).filter(s => s.length > 0)
+const authorTokenRegExp = /(?:^|\s)author:(\S*)/
 
-  return segments.map((segment, i) => {
-    const match = /^author:(\S+)$/.exec(segment)
+const RowHeight = 45
 
-    if (match === null) {
-      return <span key={i}>{segment}</span>
-    }
+const DefaultPopupHeight = 250
 
-    const validEmail = optionSet.has(match[1].toLowerCase())
-
-    const isUserTyping = i < segments.length - 1
-
-    const valueClassName = validEmail
-      ? 'token-value'
-      : isUserTyping
-      ? 'token-value-invalid'
-      : 'token-value-pending'
-
-    return (
-      <span key={i}>
-        <span className="token">author:</span>
-        <span className={valueClassName}>{match[1]}</span>
-      </span>
-    )
-  })
+const tokenValueClassNames: Record<TAuthorTokenState, string> = {
+  valid: 'token-value',
+  invalid: 'token-value-invalid',
+  pending: 'token-value-pending',
 }
 
-function parseSearchQuery(
-  searchQuery: string,
-  authorEmailSet: ReadonlySet<string>
+function parseFilterTokens(
+  text: string,
+  emailSet: ReadonlySet<string>,
+  caretOffset: number | null
+): ReadonlyArray<TFilterToken> {
+  const tokens: Array<TFilterToken> = []
+
+  const regex = new RegExp(authorTokenRegExp.source, 'g')
+
+  let cursor = 0
+  let match: RegExpExecArray | null = null
+
+  while ((match = regex.exec(text)) !== null) {
+    const tokenEnd = match.index + match[0].length
+    const tokenStart = tokenEnd - match[1].length - 'author:'.length
+
+    if (tokenStart > cursor) {
+      tokens.push({
+        kind: 'query',
+        value: text.substring(cursor, tokenStart),
+        start: cursor,
+        end: tokenStart,
+      })
+    }
+
+    const value = match[1]
+    const isEdited = caretOffset !== null && tokenEnd === caretOffset
+    const isLastToken = regex.lastIndex === text.length
+
+    let state: TAuthorTokenState
+
+    if (isEdited && !isLastToken) {
+      state = 'pending'
+    } else if (emailSet.has(value.toLowerCase())) {
+      state = 'valid'
+    } else if (isLastToken) {
+      state = 'pending'
+    } else {
+      state = 'invalid'
+    }
+
+    tokens.push({
+      kind: 'author',
+      name: 'author',
+      delimiter: ':',
+      value,
+      start: tokenStart,
+      end: tokenEnd,
+      state,
+      isEdited,
+    })
+
+    cursor = tokenEnd
+  }
+
+  if (cursor < text.length) {
+    tokens.push({
+      kind: 'query',
+      value: text.substring(cursor),
+      start: cursor,
+      end: text.length,
+    })
+  }
+
+  return tokens
+}
+
+function buildSearchResult(
+  tokens: ReadonlyArray<TFilterToken>,
+  emailSet: ReadonlySet<string>
 ) {
   const validEmailSet = new Set<string>()
-  const query = searchQuery
-    .replace(/(?:^|\s)author:(\S+)/g, (_match, email: string) => {
-      if (authorEmailSet.has(email.toLowerCase())) {
-        validEmailSet.add(email.toLowerCase())
-      }
-      return ' '
-    })
-    .replace(/\s+/g, ' ')
-    .trim()
 
-  return { validEmailSet, query }
+  const queryParts: Array<string> = []
+
+  for (const token of tokens) {
+    if (token.kind === 'query') {
+      queryParts.push(token.value)
+    } else if (token.value === '') {
+      // A bare `author:` with no email is not a complete filter token so it
+      // remains part of the search query, just like it did before the
+      // token-based submit.
+      queryParts.push(token.name + token.delimiter)
+    } else if (emailSet.has(token.value.toLowerCase())) {
+      validEmailSet.add(token.value.toLowerCase())
+    }
+  }
+
+  const query = queryParts.join(' ').replace(/\s+/g, ' ').trim()
+
+  return { query, validEmailSet }
 }

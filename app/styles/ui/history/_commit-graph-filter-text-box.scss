@@ -1,3 +1,5 @@
+@import '../../mixins';
+
 .commitGraph-filter-text-box {
   position: relative;
   flex-grow: 1;
@@ -16,9 +18,6 @@
     overflow: hidden;
     pointer-events: none;
 
-    // .token {
-    //    color: var(--box-selected-active-background-color);
-    // }
     .token-value {
       color: var(--md-accent-fg-color);
       background-color: var(--co-author-tag-background-color);
@@ -29,13 +28,9 @@
       background-color: var(--file-warning-background-color);
       border-radius: var(--outlined-border-radius);
     }
-    // .token-value-pending is intentionally unstyled: a token the user is
-    // still typing renders in the default text color until it is committed
-    // (delimited by whitespace).
   }
 
   &.with-clear-button .commitGraph-filter-text-box-backdrop {
-    // right: var(--text-field-height);
     right: calc(16px + var(--spacing-half) + 1px);
   }
 
@@ -45,5 +40,41 @@
     color: transparent;
     caret-color: var(--text-color);
     background: transparent;
+  }
+}
+
+.autocompletion-popup.filter {
+  width: 300px;
+
+  .author-filter {
+    display: flex;
+    flex-grow: 1;
+    align-items: center;
+    column-gap: var(--spacing);
+
+    height: 100%;
+    width: 100%;
+
+    .avatar {
+      width: 24px;
+      height: 24px;
+    }
+
+    .author-filter-text {
+      display: flex;
+      flex-direction: column;
+      flex-grow: 1;
+      overflow: hidden;
+
+      .name {
+        @include ellipsis;
+        font-weight: var(--font-weight-semibold);
+      }
+
+      .email {
+        @include ellipsis;
+        color: var(--text-secondary-color);
+      }
+    }
   }
 }
