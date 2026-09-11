@@ -12,6 +12,7 @@ import {
   PopoverDecoration,
 } from '../lib/popover'
 import { TextBox } from '../lib/text-box'
+import { debounce } from 'lodash'
 
 interface ICommitGraphFilterTextBoxProps
   extends Omit<IFancyTextBoxProps, 'value' | 'onValueChanged'> {
@@ -144,6 +145,15 @@ export class CommitGraphFilterTextBox extends React.Component<
     )
   }
 
+  private submitSearch = debounce(
+    (tokens: ReadonlyArray<TFilterToken> = []) => {
+      const { query, authorEmails } = buildSearchResult(tokens)
+
+      this.props.onSearchSubmitted(query, authorEmails)
+    },
+    250
+  )
+
   public constructor(props: ICommitGraphFilterTextBoxProps) {
     super(props)
 
@@ -241,7 +251,6 @@ export class CommitGraphFilterTextBox extends React.Component<
             placeholder={this.props.placeholder}
             value={this.state.value}
             onValueChanged={this.onValueChanged}
-            onEnterPressed={this.onEnterPressed}
             onRef={this.onTextBoxRef}
           />
         </div>
@@ -286,15 +295,28 @@ export class CommitGraphFilterTextBox extends React.Component<
   }
 
   private onValueChanged = (text: string) => {
+    const caretOffset = this.inputElement?.selectionEnd ?? null
+
+    // The same memoized call render() makes with the same arguments so
+    // this adds no extra parsing, the following render hits the cache.
+    const tokens = this.getFilterTokens(text, this.authorEmailSet, caretOffset)
+
     this.setState({
       value: text,
-      caretOffset: this.inputElement?.selectionEnd ?? null,
+      caretOffset,
       isAutocompleteDismissed: false,
       selectedAutocompleteRow: null,
     })
 
-    if (text === '') {
-      this.submitSearch()
+    // Hold off on submitting while the user is in the middle of typing an
+    // author email. Submitting a half-finished token would search
+    // for something the user hasn't finished writing.
+    const isTypingAuthorEmail = tokens.some(
+      token => token.kind === 'author' && token.isEdited
+    )
+
+    if (!isTypingAuthorEmail) {
+      this.submitSearch(tokens)
     }
   }
 
@@ -318,34 +340,20 @@ export class CommitGraphFilterTextBox extends React.Component<
     )
   }
 
-  private onEnterPressed = () => {
-    this.submitSearch(this.filterTokens)
-  }
-
-  private submitSearch = (tokens: ReadonlyArray<TFilterToken> = []) => {
-    const { query, validEmailSet } = buildSearchResult(
-      tokens,
-      this.authorEmailSet
-    )
-
-    this.props.onSearchSubmitted(query, validEmailSet)
-  }
-
   private onInputKeyDown = (event: Event) => {
-    if (!(event instanceof KeyboardEvent) || event.isComposing) {
-      return
-    }
-
-    if (!this.isAutocompleteVisible) {
+    if (
+      !(event instanceof KeyboardEvent) ||
+      event.isComposing ||
+      !this.isAutocompleteVisible
+    ) {
       return
     }
 
     const { selectedAutocompleteRow } = this.state
 
     if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
-      // Prevent the input caret from being moved to the start/end of the
-      // text (which would hide the autocomplete) and make sure the TextBox
-      // never sees the key.
+      // Prevent the input caret from being moved twice by underlying textbox event
+      // and make sure the TextBox never sees the key.
       event.preventDefault()
       event.stopPropagation()
 
@@ -355,16 +363,11 @@ export class CommitGraphFilterTextBox extends React.Component<
       })
 
       this.setState({ selectedAutocompleteRow: nextRow })
-    } else if (event.key === 'Enter') {
-      if (selectedAutocompleteRow !== null) {
-        event.preventDefault()
-        event.stopPropagation()
+    } else if (event.key === 'Enter' && selectedAutocompleteRow !== null) {
+      event.preventDefault()
+      event.stopPropagation()
 
-        this.insertCompletion(selectedAutocompleteRow)
-      }
-
-      // With no keyboard-selected row the event is left untouched so that
-      // the TextBox can submit the search.
+      this.insertCompletion(selectedAutocompleteRow)
     } else if (event.key === 'Escape') {
       // Close the autocomplete without clearing the input text (the TextBox
       // would do so otherwise as it is a search input).
@@ -375,6 +378,8 @@ export class CommitGraphFilterTextBox extends React.Component<
         isAutocompleteDismissed: true,
         selectedAutocompleteRow: null,
       })
+
+      this.submitSearch(this.filterTokens)
     }
   }
 
@@ -408,6 +413,12 @@ export class CommitGraphFilterTextBox extends React.Component<
       isAutocompleteDismissed: true,
       selectedAutocompleteRow: null,
     })
+
+    // Programmatic value changes don't fire onValueChanged so picking an
+    // author has to submit explicitly.
+    this.submitSearch(
+      this.getFilterTokens(newValue, this.authorEmailSet, newCaretOffset)
+    )
   }
 
   private onAutocompleteRowMouseDown = (row: number) => {
@@ -442,6 +453,8 @@ export class CommitGraphFilterTextBox extends React.Component<
         isAutocompleteDismissed: true,
         selectedAutocompleteRow: null,
       })
+
+      this.submitSearch(this.filterTokens)
     }
   }
 
@@ -573,11 +586,8 @@ function parseFilterTokens(
   return tokens
 }
 
-function buildSearchResult(
-  tokens: ReadonlyArray<TFilterToken>,
-  emailSet: ReadonlySet<string>
-) {
-  const validEmailSet = new Set<string>()
+function buildSearchResult(tokens: ReadonlyArray<TFilterToken>) {
+  const authorEmails = new Set<string>()
 
   const queryParts: Array<string> = []
 
@@ -589,12 +599,12 @@ function buildSearchResult(
       // remains part of the search query, just like it did before the
       // token-based submit.
       queryParts.push(token.name + token.delimiter)
-    } else if (emailSet.has(token.value.toLowerCase())) {
-      validEmailSet.add(token.value.toLowerCase())
+    } else {
+      authorEmails.add(token.value.toLowerCase())
     }
   }
 
   const query = queryParts.join(' ').replace(/\s+/g, ' ').trim()
 
-  return { query, validEmailSet }
+  return { query, authorEmails }
 }
