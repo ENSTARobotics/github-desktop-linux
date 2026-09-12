@@ -2,7 +2,11 @@ import * as React from 'react'
 
 import classNames from 'classnames'
 import memoizeOne from 'memoize-one'
-import { ICompareState, IConstrainedValue } from '../../lib/app-state'
+import {
+  ICompareState,
+  IConstrainedValue,
+  TSelectedFilters,
+} from '../../lib/app-state'
 import { Emoji } from '../../lib/emoji'
 import { doMergeCommitsExistAfterCommit } from '../../lib/git'
 import { getSquashedCommitDescription } from '../../lib/squash/squashed-commit-description'
@@ -77,16 +81,6 @@ interface ICommitGraphSidebarProps {
   readonly accounts: ReadonlyArray<Account>
   readonly preferAbsoluteDates: boolean
   readonly showConventionalCommitBadges: boolean
-}
-
-// Author filter types and constants
-export const FILTER_KEYS = {
-  author: 'author',
-} as const
-
-export type TFilterKeys = keyof typeof FILTER_KEYS
-export type TFilters = {
-  author: Set<string>
 }
 
 interface ICommitGraphSidebarState {
@@ -358,17 +352,25 @@ export class CommitGraphSidebar extends React.Component<
     (
       commitSHAs: ReadonlyArray<string>,
       commitSearchQuery: string,
-      commitLookup: Map<string, Commit>
+      commitLookup: Map<string, Commit>,
+      selectedFilters: TSelectedFilters | null
     ): ReadonlyArray<string> => {
       const query = commitSearchQuery.toLowerCase()
+      const authorEmails = selectedFilters?.author
 
-      if (!query) {
+      if (!query && (!authorEmails || authorEmails.size === 0)) {
         return commitSHAs
       }
 
-      return commitSHAs.filter(sha =>
-        this.commitIsIncluded(commitLookup.get(sha), query)
-      )
+      return commitSHAs.filter(sha => {
+        const commit = commitLookup.get(sha)
+        const matchesText = !query || this.commitIsIncluded(commit, query)
+        const matchesAuthor =
+          !authorEmails ||
+          authorEmails.size === 0 ||
+          authorEmails.has(commit?.author.email.toLowerCase() ?? '')
+        return matchesText && matchesAuthor
+      })
     }
   )
 
@@ -526,14 +528,14 @@ export class CommitGraphSidebar extends React.Component<
 
   private readonly commitGraph_getFilterAuthorsWithAvatar = memoizeOne(
     (
-      filterAuthors: ICommitGraphSidebarProps['compareState']['commitGraphFilterAuthors'],
+      filterAuthorsList: ICommitGraphSidebarProps['compareState']['commitGraphFilterAuthorsList'],
       gitHubRepository: ICommitGraphSidebarProps['repository']['gitHubRepository']
     ): ReadonlyArray<IAvatarUser> | null => {
-      if (!filterAuthors) {
+      if (!filterAuthorsList) {
         return null
       }
 
-      return filterAuthors.map(author =>
+      return filterAuthorsList.map(author =>
         getAvatarUserFromAuthor(author, gitHubRepository)
       )
     }
@@ -569,9 +571,9 @@ export class CommitGraphSidebar extends React.Component<
     this.commitListRef.current?.focus()
   }
 
-  private get filterAuthors() {
+  private get filterAuthorsList() {
     return this.commitGraph_getFilterAuthorsWithAvatar(
-      this.props.compareState.commitGraphFilterAuthors,
+      this.props.compareState.commitGraphFilterAuthorsList,
       this.props.repository.gitHubRepository
     )
   }
@@ -590,7 +592,7 @@ export class CommitGraphSidebar extends React.Component<
                 }
                 symbolClassName={this.state.isSearching ? 'spin' : undefined}
                 placeholder={__DARWIN__ ? 'Search Commits' : 'Search commits'}
-                filterAuthors={this.filterAuthors}
+                filterAuthorsList={this.filterAuthorsList}
                 accounts={this.props.accounts}
                 onSearchSubmitted={this.onCommitSearchSubmitted}
               />
@@ -939,7 +941,8 @@ export class CommitGraphSidebar extends React.Component<
     const commitSHAs = this.commitGraph_getFilteredCommitSHAsForState(
       this.props.compareState.commitGraphCommitSHAs,
       this.props.compareState.commitSearchQuery,
-      this.props.commitLookup
+      this.props.commitLookup,
+      this.props.compareState.commitGraphSelectedFilters
     )
 
     return this.commitGraph_getPrioritizedCommitSHAsForState(
@@ -1200,18 +1203,29 @@ export class CommitGraphSidebar extends React.Component<
 
   private commitGraph_onListModeClicked = () => {
     commitGraph_setStoredViewMode(CommitHistoryViewMode.List)
-    this.setState({ commitGraphViewMode: CommitHistoryViewMode.List })
-    void this.props.dispatcher.setCommitSearchQuery(
-      this.props.repository,
-      this.props.compareState.commitSearchQuery
-    )
+    const { commitSearchQuery, commitGraphSelectedFilters } =
+      this.props.compareState
+    const filters: TSelectedFilters = commitGraphSelectedFilters ?? {
+      author: new Set<string>(),
+    }
+
+    this.setState({ commitGraphViewMode: CommitHistoryViewMode.List }, () => {
+      void this.onSearchList(commitSearchQuery, filters)
+    })
   }
 
   private commitGraph_onTreeModeClicked = () => {
     commitGraph_setStoredViewMode(CommitHistoryViewMode.Graph)
-    this.setState({ commitGraphViewMode: CommitHistoryViewMode.Graph }, () =>
+    const { commitSearchQuery, commitGraphSelectedFilters } =
+      this.props.compareState
+    const filters: TSelectedFilters = commitGraphSelectedFilters ?? {
+      author: new Set<string>(),
+    }
+
+    this.setState({ commitGraphViewMode: CommitHistoryViewMode.Graph }, () => {
       this.commitGraph_ensureLoaded()
-    )
+      void this.onSearchGraph(commitSearchQuery, filters)
+    })
   }
 
   private commitGraph_ensureLoaded() {
@@ -1356,37 +1370,51 @@ export class CommitGraphSidebar extends React.Component<
     })
   }
 
+  private onSearchGraph = async (text: string, filters: TSelectedFilters) => {
+    this.props.dispatcher.updateCompareForm(this.props.repository, {
+      commitSearchQuery: text,
+      commitGraphSelectedFilters: filters,
+    })
+
+    try {
+      if (text.length > 0 || filters.author.size > 0) {
+        this.setState({ isSearching: true })
+        await this.props.dispatcher.commitGraph_loadNextCommitBatch(
+          this.props.repository
+        )
+      }
+    } catch (error) {
+      console.error('Error while filtering commits graph:', error)
+    } finally {
+      this.setState({ isSearching: false })
+    }
+  }
+
+  private onSearchList = async (text: string, filters: TSelectedFilters) => {
+    try {
+      this.setState({ isSearching: true })
+      await this.props.dispatcher.setCommitSearchQuery(
+        this.props.repository,
+        text,
+        filters
+      )
+    } catch (error) {
+      console.error('Error while filtering commit list:', error)
+    } finally {
+      this.setState({ isSearching: false })
+    }
+  }
+
   private onCommitSearchSubmitted = async (
     text: string,
     emailSet: Set<string>
   ) => {
-    const filters = {
-      author: emailSet,
-    }
+    const filters = { author: emailSet }
 
     if (this.state.commitGraphViewMode === CommitHistoryViewMode.Graph) {
-      this.props.dispatcher.updateCompareForm(this.props.repository, {
-        commitSearchQuery: text,
-      })
-
-      if (text.length > 0) {
-        void this.props.dispatcher.commitGraph_loadNextCommitBatch(
-          this.props.repository
-        )
-      }
+      await this.onSearchGraph(text, filters)
     } else {
-      try {
-        this.setState({ isSearching: true })
-        await this.props.dispatcher.setCommitSearchQuery(
-          this.props.repository,
-          text,
-          filters
-        )
-      } catch (error) {
-        console.error('Error while searching commits:', error)
-      } finally {
-        this.setState({ isSearching: false })
-      }
+      await this.onSearchList(text, filters)
     }
   }
 
