@@ -3328,9 +3328,25 @@ export class Dispatcher {
     const url = getGitHubHtmlUrl(repository)
     if (url !== null) {
       this.statsStore.increment('issueCreationWebpageOpenedCount')
-      return this.appStore._openInBrowser(`${url}/issues/new/choose`)
+      const path = this.getIssueCreationPath(repository)
+      return this.appStore._openInBrowser(`${url}/${path}`)
     } else {
       return false
+    }
+  }
+
+  private getIssueCreationPath(repository: Repository): string {
+    const repoType = repository.gitHubRepository?.type ?? 'github'
+    switch (repoType) {
+      case 'github':
+        return 'issues/new/choose'
+      case 'bitbucket':
+      case 'gitlab':
+      case 'forgejo':
+      case 'gitea':
+        return 'issues/new'
+      default:
+        assertNever(repoType, `Unknown repository type: ${repoType}`)
     }
   }
 
