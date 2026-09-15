@@ -34,6 +34,16 @@
     overflow: hidden;
     pointer-events: none;
 
+    .token {
+      color: var(--text-secondary-color);
+    }
+
+    .token-value-pending {
+      color: var(--text-secondary-color);
+      background-color: var(--box-alt-background-color);
+      border-radius: var(--outlined-border-radius);
+    }
+
     .token-value {
       color: var(--md-accent-fg-color);
       background-color: var(--co-author-tag-background-color);

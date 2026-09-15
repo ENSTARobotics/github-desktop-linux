@@ -13,7 +13,6 @@ import {
 } from '../lib/popover'
 import { TextBox } from '../lib/text-box'
 import { createUniqueId, releaseUniqueId } from '../lib/id-pool'
-import { debounce } from 'lodash'
 import {
   TFilterToken,
   tokenValueClassNames,
@@ -85,8 +84,10 @@ export class CommitGraphFilterTextBox extends React.Component<
 
       const searchToken = partial.trim().toLowerCase()
 
-      return authors.filter(({ email }) =>
-        email.toLowerCase().includes(searchToken)
+      return authors.filter(
+        ({ email, name }) =>
+          email.toLowerCase().includes(searchToken) ||
+          name.toLowerCase().includes(searchToken)
       )
     }
   )
@@ -145,11 +146,6 @@ export class CommitGraphFilterTextBox extends React.Component<
     )
   }
 
-  private submitSearch = debounce((text: string) => {
-    this.lastSubmittedValue = text
-    this.props.onSearchSubmitted(text)
-  }, 250)
-
   public constructor(props: ICommitGraphFilterTextBoxProps) {
     super(props)
 
@@ -163,12 +159,16 @@ export class CommitGraphFilterTextBox extends React.Component<
   }
 
   public componentWillUnmount() {
-    this.submitSearch.cancel()
     this.detachInputListeners()
     releaseUniqueId(this.listId)
   }
 
   private getAutocompleteRowId = (row: number) => `${this.listId}-${row}`
+
+  private submitSearch = (text: string) => {
+    this.lastSubmittedValue = text
+    this.props.onSearchSubmitted(text)
+  }
 
   public componentDidUpdate(prevProps: ICommitGraphFilterTextBoxProps) {
     if (
@@ -464,6 +464,12 @@ export class CommitGraphFilterTextBox extends React.Component<
 
   private onCaretMoved = () => {
     this.textBox?.syncCursorPosition()
+
+    const caretOffset = this.inputElement?.selectionEnd ?? null
+
+    if (caretOffset !== this.state.caretOffset) {
+      this.setState({ caretOffset })
+    }
 
     if (
       this.state.isAutocompleteDismissed ||
