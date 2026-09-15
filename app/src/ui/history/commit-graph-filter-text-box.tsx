@@ -17,7 +17,6 @@ import {
   TFilterToken,
   tokenValueClassNames,
   parseFilterTokens,
-  buildSearchResult,
 } from './commit-graph-filter-tokens'
 
 const ROW_HEIGHT = 45
@@ -27,7 +26,8 @@ interface ICommitGraphFilterTextBoxProps
   extends Omit<IFancyTextBoxProps, 'value' | 'onValueChanged'> {
   readonly accounts: ReadonlyArray<Account>
   readonly filterAuthorsList: ReadonlyArray<IAvatarUser> | null
-  readonly onSearchSubmitted: (text: string, emailSet: Set<string>) => void
+  readonly currentQuery: string
+  readonly onSearchSubmitted: (text: string) => void
 }
 
 interface ICommitGraphFilterTextBoxState {
@@ -58,6 +58,8 @@ export class CommitGraphFilterTextBox extends React.Component<
   private textBox: TextBox | null = null
 
   private pendingCaretOffset: number | null = null
+
+  private lastSubmittedValue: string | null = null
 
   private readonly getFilterTokens = memoizeOne(
     (
@@ -139,20 +141,16 @@ export class CommitGraphFilterTextBox extends React.Component<
     )
   }
 
-  private submitSearch = debounce(
-    (tokens: ReadonlyArray<TFilterToken> = []) => {
-      const { query, authorEmails } = buildSearchResult(tokens)
-
-      this.props.onSearchSubmitted(query, authorEmails)
-    },
-    250
-  )
+  private submitSearch = debounce((text: string) => {
+    this.lastSubmittedValue = text
+    this.props.onSearchSubmitted(text)
+  }, 250)
 
   public constructor(props: ICommitGraphFilterTextBoxProps) {
     super(props)
 
     this.state = {
-      value: '',
+      value: props.currentQuery,
       caretOffset: null,
       isAutocompleteDismissed: false,
       autocompleteAnchorElement: null,
@@ -161,10 +159,24 @@ export class CommitGraphFilterTextBox extends React.Component<
   }
 
   public componentWillUnmount() {
+    this.submitSearch.cancel()
     this.detachInputListeners()
   }
 
-  public componentDidUpdate() {
+  public componentDidUpdate(prevProps: ICommitGraphFilterTextBoxProps) {
+    if (
+      prevProps.currentQuery !== this.props.currentQuery &&
+      this.props.currentQuery !== this.lastSubmittedValue &&
+      this.props.currentQuery !== this.state.value
+    ) {
+      this.setState({
+        value: this.props.currentQuery,
+        caretOffset: null,
+        isAutocompleteDismissed: false,
+        selectedAutocompleteRow: null,
+      })
+    }
+
     this.syncBackdropScroll()
 
     if (this.pendingCaretOffset !== null && this.inputElement !== null) {
@@ -317,7 +329,7 @@ export class CommitGraphFilterTextBox extends React.Component<
     )
 
     if (!isTypingAuthorEmail) {
-      this.submitSearch(tokens)
+      this.submitSearch(text)
     }
   }
 
@@ -380,7 +392,7 @@ export class CommitGraphFilterTextBox extends React.Component<
         selectedAutocompleteRow: null,
       })
 
-      this.submitSearch(this.filterTokens)
+      this.submitSearch(this.state.value)
     }
   }
 
@@ -417,9 +429,7 @@ export class CommitGraphFilterTextBox extends React.Component<
 
     // Programmatic value changes don't fire onValueChanged so picking an
     // author has to submit explicitly.
-    this.submitSearch(
-      this.getFilterTokens(newValue, this.authorEmailSet, newCaretOffset)
-    )
+    this.submitSearch(newValue)
   }
 
   private onAutocompleteRowMouseDown = (row: number) => {
@@ -455,7 +465,7 @@ export class CommitGraphFilterTextBox extends React.Component<
         selectedAutocompleteRow: null,
       })
 
-      this.submitSearch(this.filterTokens)
+      this.submitSearch(this.state.value)
     }
   }
 

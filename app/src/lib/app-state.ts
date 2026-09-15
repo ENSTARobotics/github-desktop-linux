@@ -1009,10 +1009,6 @@ export interface ICompareBranch {
   readonly aheadBehind: IAheadBehind
 }
 
-export type TSelectedFilters = {
-  author: ReadonlySet<string>
-}
-
 export type TFilterAuthorListItem = { name: string; email: string }
 
 export interface ICompareState {
@@ -1033,9 +1029,6 @@ export interface ICompareState {
 
   /** The SHA associated with the most recent history state */
   readonly tip: string | null
-
-  /** The SHAs of commits to render in the compare list */
-  readonly prevFilteredHistoryCommitSHAs: ReadonlyArray<string>
 
   /** The SHAs of commits to render in the compare list */
   readonly filteredHistoryCommitSHAs: ReadonlyArray<string>
@@ -1062,9 +1055,6 @@ export interface ICompareState {
    * options in the history view, or null before they have been loaded.
    */
   readonly commitGraphFilterAuthorsList: ReadonlyArray<TFilterAuthorListItem> | null
-
-  /** The selected filters for graph mode search, or null if no filter is active. */
-  readonly commitGraphSelectedFilters: TSelectedFilters | null
 
   readonly compareCommitSHAs: ReadonlyArray<string>
 
@@ -1104,9 +1094,6 @@ export interface ICompareFormUpdate {
 
   /** The updated commit search query to set */
   readonly commitSearchQuery: string
-
-  /** The selected filters for graph mode search */
-  readonly commitGraphSelectedFilters: TSelectedFilters | null
 
   /** Thew new state of the branches list */
   readonly showBranchList: boolean

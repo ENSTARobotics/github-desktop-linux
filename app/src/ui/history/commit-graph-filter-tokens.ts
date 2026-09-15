@@ -1,3 +1,5 @@
+import { AuthorFilterPrefix } from '../../lib/commit-search-filter'
+
 export type TAuthorTokenState = 'valid' | 'invalid' | 'pending'
 
 export type TFilterToken =
@@ -13,7 +15,7 @@ export type TFilterToken =
       isEdited: boolean
     }
 
-const authorTokenRegExp = /(?:^|\s)author:(\S*)/
+const authorTokenRegExp = new RegExp(`(?:^|\\s)${AuthorFilterPrefix}(\\S*)`)
 
 export const tokenValueClassNames: Record<TAuthorTokenState, string> = {
   valid: 'token-value',
@@ -35,7 +37,7 @@ export function parseFilterTokens(
 
   while ((match = regex.exec(text)) !== null) {
     const tokenEnd = match.index + match[0].length
-    const tokenStart = tokenEnd - match[1].length - 'author:'.length
+    const tokenStart = tokenEnd - match[1].length - AuthorFilterPrefix.length
 
     if (tokenStart > cursor) {
       tokens.push({
@@ -86,27 +88,4 @@ export function parseFilterTokens(
   }
 
   return tokens
-}
-
-export function buildSearchResult(tokens: ReadonlyArray<TFilterToken>) {
-  const authorEmails = new Set<string>()
-
-  const queryParts: Array<string> = []
-
-  for (const token of tokens) {
-    if (token.kind === 'query') {
-      queryParts.push(token.value)
-    } else if (token.value === '') {
-      // A bare `author:` with no email is not a complete filter token so it
-      // remains part of the search query, just like it did before the
-      // token-based submit.
-      queryParts.push(token.name + token.delimiter)
-    } else {
-      authorEmails.add(token.value.toLowerCase())
-    }
-  }
-
-  const query = queryParts.join(' ').replace(/\s+/g, ' ').trim()
-
-  return { query, authorEmails }
 }

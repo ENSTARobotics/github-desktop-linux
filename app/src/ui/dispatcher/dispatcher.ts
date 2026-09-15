@@ -24,7 +24,6 @@ import {
   MultiCommitOperationConflictState,
   IMultiCommitOperationState,
   CommitOptions,
-  TSelectedFilters,
 } from '../../lib/app-state'
 import { assertNever, fatalError } from '../../lib/fatal-error'
 import {
@@ -305,10 +304,9 @@ export class Dispatcher {
   /** Update the commit search filter text. */
   public setCommitSearchQuery(
     repository: Repository,
-    text: string,
-    filters?: TSelectedFilters
+    text: string
   ): Promise<void> {
-    return this.appStore._updateCommitSearchQuery(repository, text, filters)
+    return this.appStore._updateCommitSearchQuery(repository, text)
   }
 
   /** Load the changed files for the current history selection. */

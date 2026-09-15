@@ -1,10 +1,6 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert'
-import {
-  parseFilterTokens,
-  buildSearchResult,
-  TFilterToken,
-} from '../../src/ui/history/commit-graph-filter-tokens'
+import { parseFilterTokens } from '../../src/ui/history/commit-graph-filter-tokens'
 
 const emailSet = new Set<string>()
 
@@ -198,93 +194,5 @@ describe('parseFilterTokens', () => {
       assert.strictEqual(tokens[2].start, 17)
       assert.strictEqual(tokens[2].end, 21)
     })
-  })
-})
-
-describe('buildSearchResult', () => {
-  function authorToken(
-    value: string,
-    overrides?: Partial<TFilterToken>
-  ): TFilterToken {
-    return {
-      kind: 'author',
-      name: 'author',
-      delimiter: ':',
-      value,
-      start: 0,
-      end: 0,
-      state: 'valid',
-      isEdited: false,
-      ...overrides,
-    }
-  }
-
-  function queryToken(value: string): TFilterToken {
-    return { kind: 'query', value, start: 0, end: 0 }
-  }
-
-  it('returns empty query and empty email set for empty tokens', () => {
-    const result = buildSearchResult([])
-    assert.strictEqual(result.query, '')
-    assert.strictEqual(result.authorEmails.size, 0)
-  })
-
-  it('preserves query tokens as the query string', () => {
-    const result = buildSearchResult([queryToken('hello world')])
-    assert.strictEqual(result.query, 'hello world')
-    assert.strictEqual(result.authorEmails.size, 0)
-  })
-
-  it('adds author token value to email set', () => {
-    const result = buildSearchResult([authorToken('foo@bar.com')])
-    assert.strictEqual(result.query, '')
-    assert.ok(result.authorEmails.has('foo@bar.com'))
-  })
-
-  it('treats bare author: token as query text', () => {
-    const result = buildSearchResult([authorToken('')])
-    assert.strictEqual(result.query, 'author:')
-    assert.strictEqual(result.authorEmails.size, 0)
-  })
-
-  it('builds correct query from mixed tokens', () => {
-    const result = buildSearchResult([
-      queryToken('fix '),
-      authorToken('a@b.com'),
-      queryToken(' for '),
-      authorToken('c@d.com'),
-    ])
-    assert.strictEqual(result.query, 'fix for')
-    assert.strictEqual(result.authorEmails.size, 2)
-    assert.ok(result.authorEmails.has('a@b.com'))
-    assert.ok(result.authorEmails.has('c@d.com'))
-  })
-
-  it('collapses multiple spaces in query', () => {
-    const result = buildSearchResult([
-      queryToken('hello'),
-      authorToken(''),
-      queryToken('  '),
-      queryToken('world'),
-    ])
-    // queryParts: ['hello', 'author:', '  ', 'world']
-    // join(' '): 'hello author:   world'
-    // replace(/\s+/g, ' '): 'hello author: world'
-    assert.strictEqual(result.query, 'hello author: world')
-  })
-
-  it('deduplicates emails', () => {
-    const result = buildSearchResult([
-      authorToken('dup@example.com'),
-      queryToken(' '),
-      authorToken('dup@example.com'),
-    ])
-    assert.strictEqual(result.authorEmails.size, 1)
-    assert.ok(result.authorEmails.has('dup@example.com'))
-  })
-
-  it('lowercases email addresses in output', () => {
-    const result = buildSearchResult([authorToken('FOO@BAR.COM')])
-    assert.ok(result.authorEmails.has('foo@bar.com'))
   })
 })
