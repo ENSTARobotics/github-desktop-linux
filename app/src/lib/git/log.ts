@@ -218,9 +218,7 @@ export async function getUniqueAuthorsNameAndEmail(
 
   const args = [
     'log',
-    '--date=raw',
     '--all',
-    '--format=%an%x1f%ae',
     ...formatArgs,
     '--no-show-signature',
     '--no-color',
