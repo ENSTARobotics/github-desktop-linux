@@ -107,6 +107,18 @@ export interface ITextBoxProps {
   readonly ariaDescribedBy?: string
 
   readonly ariaControls?: string
+
+  /** Optional aria-expanded attribute, for a combobox input */
+  readonly ariaExpanded?: boolean
+
+  /** Optional aria-autocomplete attribute, for a combobox input */
+  readonly ariaAutocomplete?: 'list' | 'none' | 'inline' | 'both'
+
+  /** Optional aria-haspopup attribute, for a combobox input */
+  readonly ariaHasPopup?: 'listbox'
+
+  /** Optional aria-activedescendant attribute, for a combobox input */
+  readonly ariaActiveDescendant?: string
 }
 
 interface ITextBoxState {
@@ -374,6 +386,7 @@ export class TextBox extends React.Component<ITextBoxProps, ITextBoxState> {
         {prefixedIcon && (
           <Octicon className="prefixed-icon" symbol={prefixedIcon} />
         )}
+        {/* eslint-disable-next-line jsx-a11y/aria-activedescendant-has-tabindex */}
         <input
           id={inputId}
           ref={this.onInputRef}
@@ -396,6 +409,10 @@ export class TextBox extends React.Component<ITextBoxProps, ITextBoxState> {
           aria-labelledby={this.props.ariaLabelledBy}
           aria-controls={this.props.ariaControls}
           aria-describedby={this.props.ariaDescribedBy}
+          aria-expanded={this.props.ariaExpanded}
+          aria-autocomplete={this.props.ariaAutocomplete}
+          aria-haspopup={this.props.ariaHasPopup}
+          aria-activedescendant={this.props.ariaActiveDescendant}
           required={this.props.required}
         />
         {this.props.displayClearButton &&

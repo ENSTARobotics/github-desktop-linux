@@ -12,6 +12,7 @@ import {
   PopoverDecoration,
 } from '../lib/popover'
 import { TextBox } from '../lib/text-box'
+import { createUniqueId, releaseUniqueId } from '../lib/id-pool'
 import { debounce } from 'lodash'
 import {
   TFilterToken,
@@ -60,6 +61,9 @@ export class CommitGraphFilterTextBox extends React.Component<
   private pendingCaretOffset: number | null = null
 
   private lastSubmittedValue: string | null = null
+
+  /** Id of the autocomplete listbox, for the input's combobox ARIA. */
+  private readonly listId = createUniqueId('commitGraph-filter-autocomplete')
 
   private readonly getFilterTokens = memoizeOne(
     (
@@ -161,7 +165,10 @@ export class CommitGraphFilterTextBox extends React.Component<
   public componentWillUnmount() {
     this.submitSearch.cancel()
     this.detachInputListeners()
+    releaseUniqueId(this.listId)
   }
+
+  private getAutocompleteRowId = (row: number) => `${this.listId}-${row}`
 
   public componentDidUpdate(prevProps: ICommitGraphFilterTextBoxProps) {
     if (
@@ -262,6 +269,15 @@ export class CommitGraphFilterTextBox extends React.Component<
             value={this.state.value}
             onValueChanged={this.onValueChanged}
             onRef={this.onTextBoxRef}
+            ariaControls={this.listId}
+            ariaExpanded={showAutocomplete}
+            ariaAutocomplete="list"
+            ariaHasPopup="listbox"
+            ariaActiveDescendant={
+              showAutocomplete && this.state.selectedAutocompleteRow !== null
+                ? this.getAutocompleteRowId(this.state.selectedAutocompleteRow)
+                : undefined
+            }
           />
         </div>
         {showAutocomplete && this.renderAutocompletePopover()}
@@ -290,6 +306,8 @@ export class CommitGraphFilterTextBox extends React.Component<
         minHeight={minHeight}
       >
         <List
+          accessibleListId={this.listId}
+          rowId={this.getAutocompleteRowId}
           rowCount={this.autocompleteAuthors.length}
           rowHeight={ROW_HEIGHT}
           rowRenderer={this.renderAutocompleteRow}
