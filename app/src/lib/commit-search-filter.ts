@@ -86,9 +86,14 @@ export function commitMatchesSearchFilter(
  * as re-running it over every commit.
  */
 export function canNarrowExistingResults(prev: string, next: string) {
+  if (!next.startsWith(prev)) {
+    return false
+  }
+
+  const prevEmails = parseCommitSearchFilter(prev).authorEmailsLowercase
+  const nextEmails = parseCommitSearchFilter(next).authorEmailsLowercase
   return (
-    next.startsWith(prev) &&
-    parseCommitSearchFilter(next).authorEmailsLowercase.size ===
-      parseCommitSearchFilter(prev).authorEmailsLowercase.size
+    prevEmails.size === nextEmails.size &&
+    [...prevEmails].every(email => nextEmails.has(email))
   )
 }

@@ -146,6 +146,13 @@ export class CommitGraphFilterTextBox extends React.Component<
     )
   }
 
+  /**
+   * The autocomplete row that is highlighted and that Enter accepts
+   */
+  private get activeAutocompleteRow() {
+    return this.state.selectedAutocompleteRow ?? 0
+  }
+
   public constructor(props: ICommitGraphFilterTextBoxProps) {
     super(props)
 
@@ -274,8 +281,8 @@ export class CommitGraphFilterTextBox extends React.Component<
             ariaAutocomplete="list"
             ariaHasPopup="listbox"
             ariaActiveDescendant={
-              showAutocomplete && this.state.selectedAutocompleteRow !== null
-                ? this.getAutocompleteRowId(this.state.selectedAutocompleteRow)
+              showAutocomplete
+                ? this.getAutocompleteRowId(this.activeAutocompleteRow)
                 : undefined
             }
           />
@@ -311,8 +318,8 @@ export class CommitGraphFilterTextBox extends React.Component<
           rowCount={this.autocompleteAuthors.length}
           rowHeight={ROW_HEIGHT}
           rowRenderer={this.renderAutocompleteRow}
-          selectedRows={[this.state.selectedAutocompleteRow ?? 0]}
-          scrollToRow={this.state.selectedAutocompleteRow ?? undefined}
+          selectedRows={[this.activeAutocompleteRow]}
+          scrollToRow={this.activeAutocompleteRow}
           onRowMouseDown={this.onAutocompleteRowMouseDown}
           invalidationProps={editedAuthorToken?.value ?? undefined}
           shouldDisableTabFocus={true}
@@ -376,8 +383,6 @@ export class CommitGraphFilterTextBox extends React.Component<
       return
     }
 
-    const { selectedAutocompleteRow } = this.state
-
     if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
       // Prevent the input caret from being moved twice by underlying textbox event
       // and make sure the TextBox never sees the key.
@@ -386,15 +391,15 @@ export class CommitGraphFilterTextBox extends React.Component<
 
       const nextRow = findNextSelectableRow(this.autocompleteAuthors.length, {
         direction: event.key === 'ArrowDown' ? 'down' : 'up',
-        row: selectedAutocompleteRow ?? -1,
+        row: this.activeAutocompleteRow,
       })
 
       this.setState({ selectedAutocompleteRow: nextRow })
-    } else if (event.key === 'Enter' && selectedAutocompleteRow !== null) {
+    } else if (event.key === 'Enter') {
       event.preventDefault()
       event.stopPropagation()
 
-      this.insertCompletion(selectedAutocompleteRow)
+      this.insertCompletion(this.activeAutocompleteRow)
     } else if (event.key === 'Escape') {
       // Close the autocomplete without clearing the input text (the TextBox
       // would do so otherwise as it is a search input).

@@ -15,7 +15,7 @@ export type TFilterToken =
       isEdited: boolean
     }
 
-const authorTokenRegExp = new RegExp(`(?:^|\\s)${AuthorFilterPrefix}(\\S*)`)
+const AuthorTokenRegExp = `(?:^|\\s)${AuthorFilterPrefix}(\\S*)`
 
 export const tokenValueClassNames: Record<TAuthorTokenState, string> = {
   valid: 'token-value',
@@ -30,14 +30,15 @@ export function parseFilterTokens(
 ): ReadonlyArray<TFilterToken> {
   const tokens: Array<TFilterToken> = []
 
-  const regex = new RegExp(authorTokenRegExp.source, 'g')
+  const regex = new RegExp(AuthorTokenRegExp, 'gi')
 
   let cursor = 0
   let match: RegExpExecArray | null = null
 
   while ((match = regex.exec(text)) !== null) {
     const tokenEnd = match.index + match[0].length
-    const tokenStart = tokenEnd - match[1].length - AuthorFilterPrefix.length
+    const [, value] = match
+    const tokenStart = tokenEnd - value.length - AuthorFilterPrefix.length
 
     if (tokenStart > cursor) {
       tokens.push({
@@ -48,7 +49,6 @@ export function parseFilterTokens(
       })
     }
 
-    const value = match[1]
     const isEdited = caretOffset !== null && tokenEnd === caretOffset
     const isLastToken = regex.lastIndex === text.length
 
