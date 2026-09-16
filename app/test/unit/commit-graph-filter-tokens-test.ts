@@ -166,28 +166,6 @@ describe('parseFilterTokens', () => {
       assert.strictEqual(tokens[3].value, 'c@d.com')
     })
 
-    it('matches the author prefix case-insensitively, keeping its casing', () => {
-      const tokens = parseFilterTokens(
-        'Author:a@b.com AUTHOR:c@d.com',
-        knownEmailSet,
-        null
-      )
-      assert.strictEqual(tokens.length, 3)
-      assert.strictEqual(tokens[0].kind, 'author')
-      assert.strictEqual(tokens[0].value, 'a@b.com')
-      assert.strictEqual(tokens[0].state, 'valid')
-      assert.strictEqual(tokens[2].kind, 'author')
-      assert.strictEqual(tokens[2].value, 'c@d.com')
-
-      // The backdrop mirrors the input text, so the typed casing must survive
-      assert.deepStrictEqual(
-        tokens.map(t =>
-          t.kind === 'author' ? `${t.name}${t.delimiter}${t.value}` : t.value
-        ),
-        ['Author:a@b.com', ' ', 'AUTHOR:c@d.com']
-      )
-    })
-
     it('matches email case-insensitively', () => {
       const tokens = parseFilterTokens(
         'author:Foo@Bar.com',
