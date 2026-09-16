@@ -245,6 +245,7 @@ export class CommitGraphSidebar extends React.Component<
   private loadingMoreCommitsPromise: Promise<void> | null = null
   private commitGraph_loadingMoreCommitsPromise: Promise<void> | null = null
   private commitGraph_loadingRefsKey: string | null = null
+  private searchRequestCount = 0
 
   private readonly commitGraph_getAllBranchesForState = memoizeOne(
     (
@@ -542,6 +543,18 @@ export class CommitGraphSidebar extends React.Component<
       isSearching: false,
       commitGraphViewMode: commitGraph_getStoredViewMode(),
       commitGraphSelectedBranchRef: null,
+    }
+  }
+
+  private startedSearching() {
+    this.searchRequestCount++
+    this.setState({ isSearching: true })
+  }
+
+  private stoppedSearching() {
+    this.searchRequestCount--
+    if (this.searchRequestCount === 0) {
+      this.setState({ isSearching: false })
     }
   }
 
@@ -1333,16 +1346,21 @@ export class CommitGraphSidebar extends React.Component<
       this.loadingMoreCommitsPromise = promise
     }
 
-    promise.then(() => {
-      // Defer until after commits append so eager scroll events do not immediately reload.
-      window.setTimeout(() => {
-        if (commitGraphIsTreeMode) {
-          this.commitGraph_loadingMoreCommitsPromise = null
-        } else {
-          this.loadingMoreCommitsPromise = null
-        }
-      }, 500)
-    })
+    this.startedSearching()
+    promise
+      .then(() => {
+        // Defer until after commits append so eager scroll events do not immediately reload.
+        window.setTimeout(() => {
+          if (commitGraphIsTreeMode) {
+            this.commitGraph_loadingMoreCommitsPromise = null
+          } else {
+            this.loadingMoreCommitsPromise = null
+          }
+        }, 500)
+      })
+      .finally(() => {
+        this.stoppedSearching()
+      })
   }
 
   private onSearchGraph = async (text: string) => {
@@ -1352,7 +1370,7 @@ export class CommitGraphSidebar extends React.Component<
 
     try {
       if (text.length > 0) {
-        this.setState({ isSearching: true })
+        this.startedSearching()
         await this.props.dispatcher.commitGraph_loadNextCommitBatch(
           this.props.repository
         )
@@ -1360,13 +1378,13 @@ export class CommitGraphSidebar extends React.Component<
     } catch (error) {
       console.error('Error while filtering commits graph:', error)
     } finally {
-      this.setState({ isSearching: false })
+      this.stoppedSearching()
     }
   }
 
   private onSearchList = async (text: string) => {
     try {
-      this.setState({ isSearching: true })
+      this.startedSearching()
       await this.props.dispatcher.setCommitSearchQuery(
         this.props.repository,
         text
@@ -1374,7 +1392,7 @@ export class CommitGraphSidebar extends React.Component<
     } catch (error) {
       console.error('Error while filtering commit list:', error)
     } finally {
-      this.setState({ isSearching: false })
+      this.stoppedSearching()
     }
   }
 
