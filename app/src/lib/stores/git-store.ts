@@ -302,13 +302,15 @@ export class GitStore extends BaseStore {
 
   /**
    * Load the unique commit authors across the repository for use as filter
-   * options. The current branch tips are used as a signature so that the
+   * options. The current branch and tag tips are used as a signature so that the
    * query isn't repeated when nothing has changed.
    */
   public async commitGraph_loadFilterAuthors(): Promise<ReadonlyArray<TFilterAuthorListItem> | null> {
-    const refsKey = this._allBranches
-      .map(branch => `${branch.ref}:${branch.tip.sha}`)
-      .join('\0')
+    const tagsArray = this._localTags ? [...this._localTags] : []
+    const refsKey = [
+      ...this._allBranches.map(branch => `${branch.ref}:${branch.tip.sha}`),
+      ...tagsArray.map(([name, sha]) => `${name}:${sha}`),
+    ].join('\0')
 
     if (refsKey === this.commitGraph_filterAuthorsListRefsKey) {
       return this.commitGraph_filterAuthorsList

@@ -39,6 +39,7 @@ import { CommitGraphCommitListItem } from './commit-graph-commit-list-item'
 import { getAvatarUserFromAuthor, IAvatarUser } from '../../models/avatar'
 import { CommitGraphFilterTextBox } from './commit-graph-filter-text-box'
 import {
+  AuthorFilterPrefix,
   commitMatchesSearchFilter,
   isCommitSearchFilterEmpty,
   parseCommitSearchFilter,
@@ -551,6 +552,17 @@ export class CommitGraphSidebar extends React.Component<
   public componentDidMount() {
     this.commitGraph_ensureLoaded()
 
+    // Lazy-load authors when the search box is focused, unless the query already relies on them
+    if (
+      this.props.compareState.commitSearchQuery
+        .toLowerCase()
+        .includes(AuthorFilterPrefix)
+    ) {
+      this.commitGraph_loadFilterAuthors()
+    }
+  }
+
+  private commitGraph_loadFilterAuthors = () => {
     void this.props.dispatcher.commitGraph_loadFilterAuthors(
       this.props.repository
     )
@@ -585,6 +597,7 @@ export class CommitGraphSidebar extends React.Component<
               currentQuery={this.props.compareState.commitSearchQuery}
               filterAuthorsList={this.filterAuthorsList}
               accounts={this.props.accounts}
+              onFocus={this.commitGraph_loadFilterAuthors}
               onSearchSubmitted={this.onCommitSearchSubmitted}
             />
           </div>

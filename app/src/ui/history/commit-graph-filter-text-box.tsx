@@ -275,6 +275,7 @@ export class CommitGraphFilterTextBox extends React.Component<
             placeholder={this.props.placeholder}
             value={this.state.value}
             onValueChanged={this.onValueChanged}
+            onFocus={this.props.onFocus}
             onRef={this.onTextBoxRef}
             ariaControls={this.listId}
             ariaExpanded={showAutocomplete}
