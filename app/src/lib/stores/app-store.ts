@@ -9317,8 +9317,12 @@ export class AppStore extends TypedBaseStore<IAppState> {
     return this.signInStore.beginSelfHostedSignIn(apiType, resultCallback)
   }
 
-  public _setSignInEndpoint(url: string): Promise<void> {
-    return this.signInStore.setEndpoint(url)
+  /** This shouldn't be called directly. See 'Dispatcher'. */
+  public _setSignInEndpoint(
+    url: string,
+    isEndpointFromGit = false
+  ): Promise<void> {
+    return this.signInStore.setEndpoint(url, isEndpointFromGit)
   }
 
   public _setSignInToken(token: string): Promise<void> {
