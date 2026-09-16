@@ -2395,7 +2395,8 @@ export class AppStore extends TypedBaseStore<IAppState> {
 
   /** This shouldn't be called directly. See `Dispatcher`. */
   public async _commitGraph_loadNextCommitBatch(
-    repository: Repository
+    repository: Repository,
+    alreadyFiltered: number = 0
   ): Promise<void> {
     const gitStore = this.gitStoreCache.get(repository)
     const state = this.repositoryStateCache.get(repository)
@@ -2409,18 +2410,6 @@ export class AppStore extends TypedBaseStore<IAppState> {
       state.compareState.commitSearchQuery
     )
     const isSearching = !isCommitSearchFilterEmpty(searchFilter)
-
-    if (isSearching) {
-      // Graph search filters in memory, so continue paging until the loaded
-      // graph has enough matches or Git reports no more commits.
-      const commitGraphFilteredCommitCount = commitGraphCommitSHAs.filter(sha =>
-        commitMatchesSearchFilter(gitStore.commitLookup.get(sha), searchFilter)
-      ).length
-
-      if (commitGraphFilteredCommitCount >= MinimumFilteredCommitsToLoad) {
-        return
-      }
-    }
 
     const newCommits = await gitStore.commitGraph_loadCommitBatch(
       commitGraphRefs,
@@ -2453,16 +2442,19 @@ export class AppStore extends TypedBaseStore<IAppState> {
     )
 
     if (!isCommitSearchFilterEmpty(latestSearchFilter)) {
-      const commitGraphFilteredCommitCount =
-        latestState.compareState.commitGraphCommitSHAs.filter(sha =>
-          commitMatchesSearchFilter(
-            gitStore.commitLookup.get(sha),
-            latestSearchFilter
-          )
-        ).length
+      const newFilteredCommitCount = newCommits.filter(sha =>
+        commitMatchesSearchFilter(
+          gitStore.commitLookup.get(sha),
+          latestSearchFilter
+        )
+      ).length
 
-      if (commitGraphFilteredCommitCount < MinimumFilteredCommitsToLoad) {
-        return this._commitGraph_loadNextCommitBatch(repository)
+      const numFilteredCommits = alreadyFiltered + newFilteredCommitCount
+      if (numFilteredCommits < MinimumFilteredCommitsToLoad) {
+        return this._commitGraph_loadNextCommitBatch(
+          repository,
+          numFilteredCommits
+        )
       }
     }
   }
