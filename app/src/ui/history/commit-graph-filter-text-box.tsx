@@ -311,11 +311,7 @@ export class CommitGraphFilterTextBox extends React.Component<
           rowCount={this.autocompleteAuthors.length}
           rowHeight={ROW_HEIGHT}
           rowRenderer={this.renderAutocompleteRow}
-          selectedRows={
-            this.state.selectedAutocompleteRow === null
-              ? []
-              : [this.state.selectedAutocompleteRow]
-          }
+          selectedRows={[this.state.selectedAutocompleteRow ?? 0]}
           scrollToRow={this.state.selectedAutocompleteRow ?? undefined}
           onRowMouseDown={this.onAutocompleteRowMouseDown}
           invalidationProps={editedAuthorToken?.value ?? undefined}
