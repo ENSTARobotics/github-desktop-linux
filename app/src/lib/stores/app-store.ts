@@ -2396,7 +2396,7 @@ export class AppStore extends TypedBaseStore<IAppState> {
   /** This shouldn't be called directly. See `Dispatcher`. */
   public async _commitGraph_loadNextCommitBatch(
     repository: Repository,
-    alreadyFiltered: number = 0
+    alreadyFiltered: number
   ): Promise<void> {
     const gitStore = this.gitStoreCache.get(repository)
     const state = this.repositoryStateCache.get(repository)
@@ -2410,6 +2410,10 @@ export class AppStore extends TypedBaseStore<IAppState> {
       state.compareState.commitSearchQuery
     )
     const isSearching = !isCommitSearchFilterEmpty(searchFilter)
+
+    if (isSearching && alreadyFiltered >= MinimumFilteredCommitsToLoad) {
+      return
+    }
 
     const newCommits = await gitStore.commitGraph_loadCommitBatch(
       commitGraphRefs,
@@ -2457,6 +2461,33 @@ export class AppStore extends TypedBaseStore<IAppState> {
         )
       }
     }
+  }
+
+  /** This shouldn't be called directly. See `Dispatcher`. */
+  public async _commitGraph_ensureEnoughFilteredCommits(
+    repository: Repository
+  ): Promise<void> {
+    const state = this.repositoryStateCache.get(repository)
+    const searchFilter = parseCommitSearchFilter(
+      state.compareState.commitSearchQuery
+    )
+
+    if (isCommitSearchFilterEmpty(searchFilter)) {
+      return
+    }
+
+    // Counting what's already loaded keeps the search path (which runs on
+    // every keystroke) from hitting Git once the graph holds enough matches.
+    const gitStore = this.gitStoreCache.get(repository)
+    const loadedFilteredCount = state.compareState.commitGraphCommitSHAs.filter(
+      sha =>
+        commitMatchesSearchFilter(gitStore.commitLookup.get(sha), searchFilter)
+    ).length
+
+    return this._commitGraph_loadNextCommitBatch(
+      repository,
+      loadedFilteredCount
+    )
   }
 
   /** This shouldn't be called directly. See `Dispatcher`. */

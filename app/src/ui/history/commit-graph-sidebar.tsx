@@ -1371,7 +1371,7 @@ export class CommitGraphSidebar extends React.Component<
     try {
       if (text.length > 0) {
         this.startedSearching()
-        await this.props.dispatcher.commitGraph_loadNextCommitBatch(
+        await this.props.dispatcher.commitGraph_ensureEnoughFilteredCommits(
           this.props.repository
         )
       }

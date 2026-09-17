@@ -291,10 +291,18 @@ export class Dispatcher {
     )
   }
 
+  /** Load further batches of history until enough new commits match the search filter. */
   public commitGraph_loadNextCommitBatch(
     repository: Repository
   ): Promise<void> {
-    return this.appStore._commitGraph_loadNextCommitBatch(repository)
+    return this.appStore._commitGraph_loadNextCommitBatch(repository, 0)
+  }
+
+  /** Load enough history for the current search filter to fill the graph. */
+  public commitGraph_ensureEnoughFilteredCommits(
+    repository: Repository
+  ): Promise<void> {
+    return this.appStore._commitGraph_ensureEnoughFilteredCommits(repository)
   }
 
   public commitGraph_loadFilterAuthors(repository: Repository): Promise<void> {
