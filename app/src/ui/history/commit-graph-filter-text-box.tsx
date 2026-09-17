@@ -173,8 +173,9 @@ export class CommitGraphFilterTextBox extends React.Component<
   private getAutocompleteRowId = (row: number) => `${this.listId}-${row}`
 
   private submitSearch = (text: string) => {
-    this.lastSubmittedValue = text
-    this.props.onSearchSubmitted(text)
+    const trimmedText = text.trim()
+    this.lastSubmittedValue = trimmedText
+    this.props.onSearchSubmitted(trimmedText)
   }
 
   public componentDidUpdate(prevProps: ICommitGraphFilterTextBoxProps) {
