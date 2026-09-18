@@ -16,6 +16,8 @@ Upstream: [GitHub Desktop 3.6.6-beta1 release notes](https://github.com/desktop/
 
 - [#233] The app now opens the correct URL when selecting "Repository > Create issue on ..." on a GitLab, Codeberg/Forgejo, or Gitea repository.
 
+- [#258] **Linux**: Updated Electron to fix a crash on startup when running with `--ozone-platform=x11` on desktops that load `appmenu-gtk-module` (e.g. KDE Plasma with the global menu).
+
 - **macOS**: Migrated the Homebrew cask from the deprecated `postflight` script to the new declarative `postflight_steps` format. Thanks @EstebanForge!
 
 - **Arch Linux**: Added missing `libnotify` dependency to the AUR package, which is required for notifications to work.
