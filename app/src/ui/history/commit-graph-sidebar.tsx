@@ -553,7 +553,8 @@ export class CommitGraphSidebar extends React.Component<
 
   private stoppedSearching() {
     this.searchRequestCount--
-    if (this.searchRequestCount === 0) {
+    if (this.searchRequestCount <= 0) {
+      this.searchRequestCount = 0
       this.setState({ isSearching: false })
     }
   }
@@ -1369,12 +1370,10 @@ export class CommitGraphSidebar extends React.Component<
     })
 
     try {
-      if (text.length > 0) {
-        this.startedSearching()
-        await this.props.dispatcher.commitGraph_ensureEnoughFilteredCommits(
-          this.props.repository
-        )
-      }
+      this.startedSearching()
+      await this.props.dispatcher.commitGraph_ensureEnoughFilteredCommits(
+        this.props.repository
+      )
     } catch (error) {
       console.error('Error while filtering commits graph:', error)
     } finally {
