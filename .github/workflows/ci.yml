@@ -363,9 +363,167 @@ jobs:
           path: playwright-videos/**
           if-no-files-found: warn
 
+  sign_windows:
+    name: Sign Windows installers
+    needs: [build, compute_version]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' # Skip on PRs
+    continue-on-error: ${{ !startsWith(github.ref, 'refs/tags/') }}
+    timeout-minutes: 360
+    env:
+      SIGNING_POLICY:
+        ${{ startsWith(github.ref, 'refs/tags/') && 'release-signing' ||
+        'test-signing' }}
+    permissions:
+      # SignPath downloads the unsigned artifact using this job's token
+      actions: read
+      contents: read
+    outputs:
+      unsigned-artifact-id: ${{ steps.upload_unsigned.outputs.artifact-id }}
+      signed-artifact-id: ${{ steps.upload_signed.outputs.artifact-id }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install osslsigncode
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends osslsigncode
+
+      - name: Download Windows artifacts
+        uses: actions/download-artifact@v8
+        with:
+          path: './artifacts'
+          pattern: 'Windows-*'
+
+      - name: Collect unsigned installers
+        run: |
+          mkdir unsigned
+          cp artifacts/Windows-*/DesktopPlus-*.exe artifacts/Windows-*/DesktopPlus-*.msi unsigned/
+          ls -l unsigned
+
+      # SignPath can only sign artifacts that have been uploaded to GitHub first
+      - name: Upload unsigned installers
+        id: upload_unsigned
+        uses: actions/upload-artifact@v7
+        with:
+          name: unsigned-windows-installers
+          path: unsigned/
+          if-no-files-found: error
+          overwrite: true
+
+      - name: Submit signing request to SignPath
+        uses: signpath/github-action-submit-signing-request@4184a38a17e5b37d026a3ed443581c1f03ae1b3a # v3.0
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ env.SIGNING_POLICY }}
+          github-artifact-id: ${{ steps.upload_unsigned.outputs.artifact-id }}
+          parameters: |
+            version: "${{ needs.compute_version.outputs.APP_VERSION }}"
+            product-version: "${{ needs.compute_version.outputs.SEMVER_COMPATIBLE_VERSION }}"
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds:
+            ${{ env.SIGNING_POLICY == 'release-signing' && 18000 || 600 }}
+          output-artifact-directory: signed
+
+      - name: Check signed installers
+        run: |
+          ls -l signed
+          for unsigned in unsigned/*; do
+            signed="signed/$(basename "$unsigned")"
+            if [[ ! -f "$signed" ]]; then
+              echo "::error::Missing signed file: $signed"
+              exit 1
+            fi
+          done
+
+      - name: Verify signatures
+        if: env.SIGNING_POLICY == 'release-signing'
+        run: |
+          for signed in signed/*; do
+            # The signature is verified against the certificate chain embedded
+            # in the file itself, so that no CA bundle is needed. This checks
+            # the integrity of the file and the identity of the signer, but not
+            # whether the certificate chain is trusted.
+            osslsigncode extract-signature -in "$signed" -pem -out signature.pem > /dev/null
+            openssl pkcs7 -in signature.pem -print_certs -out embedded-chain.pem
+            result=$(osslsigncode verify -in "$signed" -CAfile embedded-chain.pem)
+            echo "$result"
+            if ! grep -q "CN=SignPath Foundation" <<< "$result"; then
+              echo "::error::$signed is not signed by SignPath Foundation"
+              exit 1
+            fi
+          done
+
+      - name: Upload signed installers
+        id: upload_signed
+        uses: actions/upload-artifact@v7
+        with:
+          name: signed-windows-installers
+          path: signed/
+          if-no-files-found: error
+          overwrite: true
+
+  merge_windows_signed_artifacts:
+    name: Merge signed Windows installers
+    needs: sign_windows
+    runs-on: ubuntu-latest
+    # Skipped when signing failed on a regular push (continue-on-error)
+    if: needs.sign_windows.outputs.signed-artifact-id != ''
+    continue-on-error: ${{ !startsWith(github.ref, 'refs/tags/') }}
+    permissions:
+      # Needed to delete the intermediate artifacts
+      actions: write
+      contents: read
+    steps:
+      - name: Download Windows artifacts
+        uses: actions/download-artifact@v8
+        with:
+          path: './artifacts'
+          pattern: 'Windows-*'
+
+      - name: Download signed installers
+        uses: actions/download-artifact@v8
+        with:
+          path: './signed'
+          name: signed-windows-installers
+
+      - name: Replace unsigned installers with signed ones
+        run: |
+          for arch in x64 arm64; do
+            cp signed/DesktopPlus-*-windows-$arch.exe signed/DesktopPlus-*-windows-$arch.msi artifacts/Windows-$arch/
+          done
+
+      # Overwrite the build artifacts so that the release jobs pick up the
+      # signed installers without having to know about the signing jobs
+      - name: Upload signed Windows x64 artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: Windows-x64
+          path: artifacts/Windows-x64/
+          if-no-files-found: error
+          overwrite: true
+
+      - name: Upload signed Windows arm64 artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: Windows-arm64
+          path: artifacts/Windows-arm64/
+          if-no-files-found: error
+          overwrite: true
+
+      - name: Delete intermediate artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for id in ${{ needs.sign_windows.outputs.unsigned-artifact-id }} ${{ needs.sign_windows.outputs.signed-artifact-id }}; do
+            gh api --method DELETE "repos/${{ github.repository }}/actions/artifacts/$id"
+          done
+
   release_github:
     name: Create GitHub release
-    needs: [build, compute_version]
+    needs: [build, merge_windows_signed_artifacts, compute_version]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/')
     permissions:
