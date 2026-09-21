@@ -367,7 +367,11 @@ jobs:
     name: Sign Windows installers
     needs: [build, compute_version]
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' # Skip on PRs
+    # Skip on PRs. Non-release runs only sign when the TEST_CODE_SIGNING
+    # repository variable is set to 'true'
+    if: |
+      github.event_name == 'push' &&
+      (startsWith(github.ref, 'refs/tags/') || vars.TEST_CODE_SIGNING == 'true')
     continue-on-error: ${{ !startsWith(github.ref, 'refs/tags/') }}
     timeout-minutes: 360
     env:
