@@ -375,12 +375,7 @@ jobs:
         ${{ startsWith(github.ref, 'refs/tags/') && 'release-signing' ||
         'test-signing' }}
     permissions:
-      # SignPath downloads the unsigned artifact using this job's token
-      actions: read
       contents: read
-    outputs:
-      unsigned-artifact-id: ${{ steps.upload_unsigned.outputs.artifact-id }}
-      signed-artifact-id: ${{ steps.upload_signed.outputs.artifact-id }}
     steps:
       - uses: actions/checkout@v7
 
@@ -401,34 +396,40 @@ jobs:
           cp artifacts/Windows-*/DesktopPlus-*.exe artifacts/Windows-*/DesktopPlus-*.msi unsigned/
           ls -l unsigned
 
-      # SignPath can only sign artifacts that have been uploaded to GitHub first
-      - name: Upload unsigned installers
-        id: upload_unsigned
-        uses: actions/upload-artifact@v7
-        with:
-          name: unsigned-windows-installers
-          path: unsigned/
-          if-no-files-found: error
-          overwrite: true
-
+      # The artifact configuration expects a ZIP archive with the installers at its root
       - name: Submit signing request to SignPath
-        uses: signpath/github-action-submit-signing-request@4184a38a17e5b37d026a3ed443581c1f03ae1b3a # v3.0
-        with:
-          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
-          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
-          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
-          signing-policy-slug: ${{ env.SIGNING_POLICY }}
-          github-artifact-id: ${{ steps.upload_unsigned.outputs.artifact-id }}
-          parameters: |
-            version: "${{ needs.compute_version.outputs.APP_VERSION }}"
-            product-version: "${{ needs.compute_version.outputs.SEMVER_COMPATIBLE_VERSION }}"
-          wait-for-completion: true
-          wait-for-completion-timeout-in-seconds:
+        shell: pwsh
+        env:
+          SIGNPATH_API_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}
+          SIGNPATH_ORGANIZATION_ID: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          SIGNPATH_PROJECT_SLUG: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          APP_VERSION: ${{ needs.compute_version.outputs.APP_VERSION }}
+          SEMVER_COMPATIBLE_VERSION:
+            ${{ needs.compute_version.outputs.SEMVER_COMPATIBLE_VERSION }}
+          # Release signing waits for the manual approval, test signing is automatic
+          WAIT_TIMEOUT_SECONDS:
             ${{ env.SIGNING_POLICY == 'release-signing' && 18000 || 600 }}
-          output-artifact-directory: signed
+        run: |
+          Compress-Archive -Path unsigned/* -DestinationPath unsigned-windows-installers.zip
+          Install-Module SignPath -RequiredVersion 4.4.6 -Scope CurrentUser -Force
+          Submit-SigningRequest `
+            -InputArtifactPath unsigned-windows-installers.zip `
+            -OrganizationId $env:SIGNPATH_ORGANIZATION_ID `
+            -ProjectSlug $env:SIGNPATH_PROJECT_SLUG `
+            -SigningPolicySlug $env:SIGNING_POLICY `
+            -Parameters @{
+              'version' = $env:APP_VERSION
+              'product-version' = $env:SEMVER_COMPATIBLE_VERSION
+            } `
+            -Description "$env:GITHUB_SERVER_URL/$env:GITHUB_REPOSITORY/actions/runs/$env:GITHUB_RUN_ID" `
+            -WaitForCompletion `
+            -WaitForCompletionTimeoutInSeconds ([int]$env:WAIT_TIMEOUT_SECONDS) `
+            -OutputArtifactPath signed-windows-installers.zip `
+            -ApiToken $env:SIGNPATH_API_TOKEN
 
       - name: Check signed installers
         run: |
+          unzip -o signed-windows-installers.zip -d signed
           ls -l signed
           for unsigned in unsigned/*; do
             signed="signed/$(basename "$unsigned")"
@@ -456,39 +457,6 @@ jobs:
             fi
           done
 
-      - name: Upload signed installers
-        id: upload_signed
-        uses: actions/upload-artifact@v7
-        with:
-          name: signed-windows-installers
-          path: signed/
-          if-no-files-found: error
-          overwrite: true
-
-  merge_windows_signed_artifacts:
-    name: Merge signed Windows installers
-    needs: sign_windows
-    runs-on: ubuntu-latest
-    # Skipped when signing failed on a regular push (continue-on-error)
-    if: needs.sign_windows.outputs.signed-artifact-id != ''
-    continue-on-error: ${{ !startsWith(github.ref, 'refs/tags/') }}
-    permissions:
-      # Needed to delete the intermediate artifacts
-      actions: write
-      contents: read
-    steps:
-      - name: Download Windows artifacts
-        uses: actions/download-artifact@v8
-        with:
-          path: './artifacts'
-          pattern: 'Windows-*'
-
-      - name: Download signed installers
-        uses: actions/download-artifact@v8
-        with:
-          path: './signed'
-          name: signed-windows-installers
-
       - name: Replace unsigned installers with signed ones
         run: |
           for arch in x64 arm64; do
@@ -496,7 +464,7 @@ jobs:
           done
 
       # Overwrite the build artifacts so that the release jobs pick up the
-      # signed installers without having to know about the signing jobs
+      # signed installers without having to know about this job
       - name: Upload signed Windows x64 artifacts
         uses: actions/upload-artifact@v7
         with:
@@ -513,17 +481,9 @@ jobs:
           if-no-files-found: error
           overwrite: true
 
-      - name: Delete intermediate artifacts
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          for id in ${{ needs.sign_windows.outputs.unsigned-artifact-id }} ${{ needs.sign_windows.outputs.signed-artifact-id }}; do
-            gh api --method DELETE "repos/${{ github.repository }}/actions/artifacts/$id"
-          done
-
   release_github:
     name: Create GitHub release
-    needs: [build, merge_windows_signed_artifacts, compute_version]
+    needs: [build, sign_windows, compute_version]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/')
     permissions:
