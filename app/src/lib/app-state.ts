@@ -338,6 +338,9 @@ export interface IAppState {
   /** The selected tab size preference */
   readonly selectedTabSize: number
 
+  /** Whether to show the worktree dropdown even without linked worktrees. */
+  readonly alwaysShowWorktreeList: boolean
+
   /** The number of recent repositories to show in the repository list */
   readonly recentRepositoriesCount: number
 

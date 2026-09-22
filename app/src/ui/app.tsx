@@ -250,6 +250,7 @@ import { AddWorktreeDialog } from './worktrees/add-worktree-dialog'
 import { DeleteWorktreeDialog } from './worktrees/delete-worktree-dialog'
 import { DeleteWorktreeFailedDialog } from './worktrees/delete-worktree-failed-dialog'
 import { RenameWorktreeDialog } from './worktrees/rename-worktree-dialog'
+import { shouldShowWorktreeDropdown } from '../lib/worktree-dropdown'
 
 const MinuteInMilliseconds = 1000 * 60
 const HourInMilliseconds = MinuteInMilliseconds * 60
@@ -1986,6 +1987,7 @@ export class App extends React.Component<IAppProps, IAppState> {
             onEditGlobalGitConfig={this.editGlobalGitConfig}
             underlineLinks={this.state.underlineLinks}
             showDiffCheckMarks={this.state.showDiffCheckMarks}
+            alwaysShowWorktreeList={this.state.alwaysShowWorktreeList}
             showBranchNameInRepoList={this.state.showBranchNameInRepoList}
             branchSortOrder={this.state.branchSortOrder}
             copyPathNormalization={this.state.copyPathNormalization}
@@ -4243,10 +4245,13 @@ export class App extends React.Component<IAppProps, IAppState> {
     const isOpen =
       currentFoldout !== null && currentFoldout.type === FoldoutType.Worktree
 
-    // Only show the worktree dropdown when there are linked worktrees or if the
-    // foldout is open. This allows the user to create a worktree from the app
-    // menu even when there are no worktrees.
-    if (worktrees.length <= 1 && !isOpen) {
+    if (
+      !shouldShowWorktreeDropdown(
+        worktrees.length,
+        isOpen,
+        this.state.alwaysShowWorktreeList
+      )
+    ) {
       return null
     }
 

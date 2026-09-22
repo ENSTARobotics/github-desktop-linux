@@ -119,6 +119,7 @@ interface IPreferencesProps {
   readonly selectedShell: Shell
   readonly selectedTheme: ApplicationTheme
   readonly selectedTabSize: number
+  readonly alwaysShowWorktreeList: boolean
   readonly recentRepositoriesCount: number
   readonly selectedDiffFontSize: number
   readonly selectedDiffFontFamily: DiffFontFamily
@@ -204,6 +205,7 @@ interface IPreferencesState {
 
   readonly initiallySelectedTheme: ApplicationTheme
   readonly initiallySelectedTabSize: number
+  readonly alwaysShowWorktreeList: boolean
   readonly initiallySelectedDiffFontSize: number
   readonly initiallySelectedDiffFontFamily: DiffFontFamily
 
@@ -296,6 +298,7 @@ export class Preferences extends React.Component<
       hideWindowOnQuit: this.props.hideWindowOnQuit,
       initiallySelectedTheme: this.props.selectedTheme,
       initiallySelectedTabSize: this.props.selectedTabSize,
+      alwaysShowWorktreeList: this.props.alwaysShowWorktreeList,
       initiallySelectedDiffFontSize: this.props.selectedDiffFontSize,
       initiallySelectedDiffFontFamily: this.props.selectedDiffFontFamily,
       isLoadingGitConfig: true,
@@ -757,6 +760,10 @@ export class Preferences extends React.Component<
             onSelectedThemeChanged={this.onSelectedThemeChanged}
             selectedTabSize={this.props.selectedTabSize}
             onSelectedTabSizeChanged={this.onSelectedTabSizeChanged}
+            alwaysShowWorktreeList={this.state.alwaysShowWorktreeList}
+            onAlwaysShowWorktreeListChanged={
+              this.onAlwaysShowWorktreeListChanged
+            }
             recentRepositoriesCount={this.state.recentRepositoriesCount}
             onRecentRepositoriesCountChanged={
               this.onRecentRepositoriesCountChanged
@@ -1156,6 +1163,12 @@ export class Preferences extends React.Component<
     this.props.dispatcher.setSelectedTabSize(tabSize)
   }
 
+  private onAlwaysShowWorktreeListChanged = (
+    alwaysShowWorktreeList: boolean
+  ) => {
+    this.setState({ alwaysShowWorktreeList })
+  }
+
   private onSelectedDiffFontSizeChanged = (diffFontSize: number) => {
     this.props.dispatcher.setSelectedDiffFontSize(diffFontSize)
   }
@@ -1426,6 +1439,7 @@ export class Preferences extends React.Component<
     dispatcher.setUnderlineLinksSetting(this.state.underlineLinks)
 
     dispatcher.setDiffCheckMarksSetting(this.state.showDiffCheckMarks)
+    dispatcher.setAlwaysShowWorktreeList(this.state.alwaysShowWorktreeList)
 
     dispatcher.setShowBranchNameInRepoList(this.state.showBranchNameInRepoList)
     dispatcher.setBranchSortOrder(this.state.branchSortOrder)
