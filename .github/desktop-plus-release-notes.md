@@ -1,6 +1,6 @@
-Desktop Plus v3.6.6-beta1
+Desktop Plus v3.6.6
 
-Upstream: [GitHub Desktop 3.6.6-beta1 release notes](https://github.com/desktop/desktop/releases/tag/release-3.6.6-beta1)
+Upstream: [GitHub Desktop 3.6.6 release notes](https://github.com/desktop/desktop/releases/tag/release-3.6.6)
 
 ## Changes and improvements:
 
@@ -10,6 +10,8 @@ Upstream: [GitHub Desktop 3.6.6-beta1 release notes](https://github.com/desktop/
 
 - [#260] The "recent repositories" list length is now configurable. Thanks @TurtIeSocks!  
   This replaces the old "Show recent repositories" checkbox in the appearance settings. If you want to hide the recent repositories list, you can set the length to 0.
+
+- [#269] When "Show Conventional Commits prefixes as badges" is enabled, the badges now respect the capitalization used in the commit message.
 
 
 ## Fixes:
