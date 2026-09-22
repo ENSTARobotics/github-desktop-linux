@@ -42,7 +42,7 @@ export async function addRemote(
   name: string,
   url: string
 ): Promise<IRemote> {
-  await git(['remote', 'add', name, url], repository.path, 'addRemote')
+  await git(['remote', 'add', '--', name, url], repository.path, 'addRemote')
 
   return { url, name }
 }
@@ -57,7 +57,7 @@ export async function removeRemote(
   }
 
   await git(
-    ['remote', 'remove', name],
+    ['remote', 'remove', '--', name],
     repository.path,
     'removeRemote',
     options
@@ -70,7 +70,11 @@ export async function setRemoteURL(
   name: string,
   url: string
 ): Promise<true> {
-  await git(['remote', 'set-url', name, url], repository.path, 'setRemoteURL')
+  await git(
+    ['remote', 'set-url', '--', name, url],
+    repository.path,
+    'setRemoteURL'
+  )
   return true
 }
 
@@ -84,7 +88,7 @@ export async function getRemoteURL(
   name: string
 ): Promise<string | null> {
   const result = await git(
-    ['remote', 'get-url', name],
+    ['remote', 'get-url', '--', name],
     repository.path,
     'getRemoteURL',
     { successExitCodes: new Set([0, 2, 128]) }
@@ -115,7 +119,7 @@ export async function updateRemoteHEAD(
   }
 
   await git(
-    ['remote', 'set-head', '-a', remote.name],
+    ['remote', 'set-head', '-a', '--', remote.name],
     repository.path,
     'updateRemoteHEAD',
     options
