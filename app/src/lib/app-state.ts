@@ -427,6 +427,9 @@ export interface IAppState {
   /** Info needed to launch a custom shell chosen by the user. */
   readonly customShell: ICustomIntegration | null
 
+  /** User-configured path to the GitHub Copilot app, or null for auto-detection. */
+  readonly copilotAppPath: string | null
+
   readonly branchPresetScript: ICustomIntegration | null
 
   /**
