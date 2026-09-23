@@ -20,6 +20,7 @@ describe('AppStore repository indicators', () => {
       namedExports: {
         ...(await import('../../../src/ui/main-process-proxy')),
         getAppMenu: () => {},
+        updateMenuState: () => {},
       },
     })
     ;({ Repository } = await import('../../../src/models/repository'))
