@@ -13,7 +13,6 @@ import { getVersion } from '../app/package-info'
 import {
   getDistPath,
   getDistRoot,
-  getArchitectureForFileName,
 } from './dist-info'
 import { overrideHicolorIconName } from './linux-icon'
 
@@ -145,7 +144,8 @@ export async function packageDebian(): Promise<string> {
 
   const oldPath = files[0]
 
-  const newFileName = `GitHubDesktopLinux-v${getVersion()}-linux-${getArchitectureForFileName()}.deb`
+  const publicVersion = getVersion().replace(/-ensta\.\d+$/, '')
+  const newFileName = `github-desktop-linux_${publicVersion}_${getArchitecture()}.deb`
   const newPath = join(distRoot, newFileName)
   await rename(oldPath, newPath)
 

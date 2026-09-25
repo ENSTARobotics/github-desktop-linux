@@ -174,7 +174,8 @@ export async function packageRedhat(): Promise<string> {
 
   const oldPath = files[0]
 
-  const newFileName = `GitHubDesktopLinux-v${getVersion()}-linux-${getArchitectureForFileName()}.rpm`
+  const publicVersion = getVersion().replace(/-ensta\.\d+$/, '')
+  const newFileName = `github-desktop-linux-${publicVersion}-${getArchitectureForFileName()}.rpm`
   const newPath = join(distRoot, newFileName)
   await rename(oldPath, newPath)
 

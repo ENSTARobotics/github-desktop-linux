@@ -124,7 +124,8 @@ export async function packageAppImage(): Promise<string> {
   const appDir = join(distRoot, `${executableName}.AppDir`)
   const appImageTool = join(distRoot, 'appimagetool')
 
-  const fileName = `GitHubDesktopLinux-v${getVersion()}-linux-${architecture}.AppImage`
+  const publicVersion = getVersion().replace(/-ensta\.\d+$/, '')
+  const fileName = `github-desktop-linux-${publicVersion}-${architecture}.AppImage`
 
   // https://github.com/AppImage/AppImageSpec/blob/master/draft.md#release-name-values
   const updateInfo = `gh-releases-zsync|desktop-plus|desktop-plus|latest|DesktopPlus-*-linux-${architecture}.AppImage.zsync`
