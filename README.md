@@ -6,11 +6,17 @@ This repository provides an easy-to-install GitHub Desktop experience for Linux 
 
 > This project is based on [Desktop Plus](https://github.com/desktop-plus/desktop-plus), which itself is based on the official [GitHub Desktop](https://github.com/desktop/desktop) project.
 
-<p align="center">
-  <img src="docs/assets/github-desktop-linux.png"
-       alt="GitHub Desktop running on Linux"
-       width="900">
-</p>
+<picture>
+  <source
+    srcset="docs/assets/github-dark.png"
+    media="(prefers-color-scheme: dark)"
+  />
+  <img
+    width="1072"
+    src="docs/assets/github-light.png"
+    alt="A screenshot of the GitHub Desktop application showing changes being viewed and committed with two attributed co-authors"
+  />
+</picture>
 
 ## Why this repository?
 
