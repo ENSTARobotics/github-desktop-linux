@@ -116,7 +116,7 @@ const options: DebianOptions = {
     // see https://github.com/shiftkey/desktop/issues/72 for more details
     'x-scheme-handler/x-github-desktop-dev-auth',
   ],
-  maintainer: 'Pol Rivero <admin@desktop-plus.org>',
+  maintainer: 'ENSTA Robotics <jocelyn.deleuil@ensta.fr>',
   desktopTemplate: 'script/resources/deb/desktop.ejs',
 }
 
