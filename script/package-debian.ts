@@ -10,10 +10,7 @@ const globPromise = promisify(glob)
 import { mkdir, rename, writeFile } from 'fs/promises'
 
 import { getVersion } from '../app/package-info'
-import {
-  getDistPath,
-  getDistRoot,
-} from './dist-info'
+import { getDistPath, getDistRoot } from './dist-info'
 import { overrideHicolorIconName } from './linux-icon'
 
 function getArchitecture() {
@@ -75,11 +72,9 @@ const options: DebianOptions = {
   arch: getArchitecture(),
   version: getVersion(),
   name: 'desktop-plus',
-  description:
-    'GitHub Desktop for Linux, maintained by ENSTA Robotics.',
+  description: 'GitHub Desktop for Linux, maintained by ENSTA Robotics.',
   productName: 'GitHub Desktop for Linux',
-  productDescription:
-    'GitHub Desktop for Linux, maintained by ENSTA Robotics.',
+  productDescription: 'GitHub Desktop for Linux, maintained by ENSTA Robotics.',
   genericName: 'Git Client',
   categories: ['Development', 'GitHub'],
   section: 'GNOME;GTK;Development',
