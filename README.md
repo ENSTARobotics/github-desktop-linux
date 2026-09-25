@@ -57,13 +57,13 @@ Download the latest `.deb` package from the [Releases](https://github.com/ENSTAR
 Then install it with:
 
 ```bash
-sudo apt install ./github-desktop-linux-*.deb
+sudo apt install ./GitHubDesktopLinux-*.deb
 ```
 
 If necessary, you can also install a downloaded package with:
 
 ```bash
-sudo dpkg -i github-desktop-linux-*.deb
+sudo dpkg -i GitHubDesktopLinux-*.deb
 sudo apt install -f
 ```
 

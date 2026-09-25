@@ -145,7 +145,7 @@ export async function packageDebian(): Promise<string> {
 
   const oldPath = files[0]
 
-  const newFileName = `DesktopPlus-v${getVersion()}-linux-${getArchitectureForFileName()}.deb`
+  const newFileName = `GitHubDesktopLinux-v${getVersion()}-linux-${getArchitectureForFileName()}.deb`
   const newPath = join(distRoot, newFileName)
   await rename(oldPath, newPath)
 
