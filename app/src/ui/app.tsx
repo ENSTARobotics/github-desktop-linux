@@ -1223,10 +1223,10 @@ export class App extends React.Component<IAppProps, IAppState> {
         repository instanceof Repository
           ? repository.alias ?? repository.name
           : repository.name
-      return `${repositoryTitle} - Desktop Plus`
+      return `${repositoryTitle} - GitHub Desktop for Linux`
     }
 
-    return 'Desktop Plus'
+    return 'GitHub Desktop for Linux'
   }
 
   private updateWindowTitle() {

@@ -77,17 +77,17 @@ const options: DebianOptions = {
   version: getVersion(),
   name: 'desktop-plus',
   description:
-    'GitHub Desktop fork with advanced functionality and improvements.',
-  productName: 'Desktop Plus',
+    'GitHub Desktop for Linux, maintained by ENSTA Robotics.',
+  productName: 'GitHub Desktop for Linux',
   productDescription:
-    'GitHub Desktop fork with advanced functionality and improvements.',
+    'GitHub Desktop for Linux, maintained by ENSTA Robotics.',
   genericName: 'Git Client',
   categories: ['Development', 'GitHub'],
   section: 'GNOME;GTK;Development',
   priority: 'extra',
   // The AUR -bin package unpacks 'data.tar.zst' ensure zstd is used instead of the host default.
   compression: 'zstd',
-  homepage: 'https://desktop-plus.org',
+  homepage: 'https://github.com/ENSTARobotics/github-desktop-linux',
   depends: [
     // dugite-native dependencies
     'libcurl3 | libcurl4',
