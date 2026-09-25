@@ -1217,15 +1217,6 @@ export class App extends React.Component<IAppProps, IAppState> {
   }
 
   private getWindowTitle(state: IAppState = this.state): string {
-    const repository = state.selectedState?.repository
-    if (repository) {
-      const repositoryTitle =
-        repository instanceof Repository
-          ? repository.alias ?? repository.name
-          : repository.name
-      return `${repositoryTitle} - GitHub Desktop`
-    }
-
     return 'GitHub Desktop'
   }
 
