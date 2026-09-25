@@ -251,7 +251,7 @@ async function packageLinux() {
       console.log(` - ${installer}`)
     }
 
-    generateChecksums(installers)
+    await generateChecksums(installers)
   } catch (err) {
     console.error('A problem occurred with the packaging step', err)
     process.exit(1)
