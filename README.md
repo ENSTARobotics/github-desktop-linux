@@ -57,13 +57,13 @@ Download the latest `.deb` package from the [Releases](https://github.com/ENSTAR
 Then install it with:
 
 ```bash
-sudo apt install ./github-desktop-linux-*.deb
+sudo apt install ./github-desktop-linux_*.deb
 ```
 
 If necessary, you can also install a downloaded package with:
 
 ```bash
-sudo dpkg -i github-desktop-linux-*.deb
+sudo dpkg -i github-desktop-linux_*.deb
 sudo apt install -f
 ```
 
@@ -72,8 +72,8 @@ sudo apt install -f
 If an AppImage is provided with the release:
 
 ```bash
-chmod +x GitHubDesktopLinux-*.AppImage
-./GitHubDesktopLinux-*.AppImage
+chmod +x github-desktop-linux-*.AppImage
+./github-desktop-linux-*.AppImage
 ```
 
 For Ubuntu and Debian-based systems, the `.deb` package is recommended.
