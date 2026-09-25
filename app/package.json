@@ -2,20 +2,19 @@
   "$NOTE": "NOTE: Do not edit the 'version' field, as that will cause merge conflicts with upstream. The version is set using env.APP_VERSION.",
   "name": "desktop-plus",
   "desktopName": "desktop-plus.desktop",
-  "productName": "Desktop Plus",
+  "productName": "GitHub Desktop for Linux",
   "bundleID": "org.desktop-plus.DesktopPlus",
-  "companyName": "Desktop Plus",
+  "companyName": "ENSTA Robotics",
   "version": "3.6.7-beta2",
   "main": "./main.js",
   "repository": {
     "type": "git",
-    "url": "https://github.com/desktop-plus/desktop-plus.git"
+    "url": "https://github.com/ENSTARobotics/github-desktop-linux.git"
   },
-  "description": "Simple collaboration from your desktop",
+  "description": "GitHub Desktop for Linux, maintained by ENSTA Robotics.",
   "author": {
-    "name": "Desktop Plus",
-    "email": "admin@desktop-plus.org",
-    "url": "https://desktop-plus.org/"
+    "name": "ENSTA Robotics",
+    "url": "https://github.com/ENSTARobotics"
   },
   "license": "MIT",
   "dependencies": {
