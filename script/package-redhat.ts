@@ -66,11 +66,9 @@ const options: RedhatOptions = {
   arch: getArchitecture(),
   version: getVersion(),
   name: 'desktop-plus',
-  description:
-    'GitHub Desktop for Linux, maintained by ENSTA Robotics.',
+  description: 'GitHub Desktop for Linux, maintained by ENSTA Robotics.',
   productName: 'GitHub Desktop for Linux',
-  productDescription:
-    'GitHub Desktop for Linux, maintained by ENSTA Robotics.',
+  productDescription: 'GitHub Desktop for Linux, maintained by ENSTA Robotics.',
   genericName: 'Git Client',
   categories: ['Development', 'GitHub'],
   homepage: 'https://github.com/ENSTARobotics/github-desktop-linux',
