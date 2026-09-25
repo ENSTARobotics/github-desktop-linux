@@ -297,9 +297,20 @@ jobs:
       - name: Install app on macOS
         if: runner.os == 'macOS'
         run: |
-          rm -rf "/Applications/Desktop Plus.app"
-          ditto "dist/Desktop Plus-darwin-arm64/Desktop Plus.app" "/Applications/Desktop Plus.app"
-          echo "DESKTOP_E2E_APP_PATH=/Applications/Desktop Plus.app/Contents/MacOS/Desktop Plus" >> "$GITHUB_ENV"
+          APP_NAME="$(node -p "require('./app/package.json').productName")"
+          APP_BUNDLE="dist/${APP_NAME}-darwin-${{ matrix.arch }}/${APP_NAME}.app"
+          INSTALL_BUNDLE="/Applications/${APP_NAME}.app"
+          EXECUTABLE="${INSTALL_BUNDLE}/Contents/MacOS/${APP_NAME}"
+
+          if [ ! -d "${APP_BUNDLE}" ]; then
+            echo "Unable to locate macOS app bundle: ${APP_BUNDLE}" >&2
+            find dist -maxdepth 3 -name '*.app' -print
+            exit 1
+          fi
+
+          rm -rf "${INSTALL_BUNDLE}"
+          ditto "${APP_BUNDLE}" "${INSTALL_BUNDLE}"
+          echo "DESKTOP_E2E_APP_PATH=${EXECUTABLE}" >> "$GITHUB_ENV"
       - name: Install app on Windows
         if: runner.os == 'Windows'
         shell: pwsh
