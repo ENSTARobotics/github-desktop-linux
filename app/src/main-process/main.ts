@@ -67,9 +67,11 @@ import {
   getConfigMigrationResult,
   migrateLegacyConfigDir,
 } from './migrate-config-dir'
+import { getProductName } from '../../package-info'
 
 // Migrate the config directory from a previous app name (if needed) before
 // anything touches the userData directory.
+app.setName(getProductName())
 migrateLegacyConfigDir()
 
 app.setAppLogsPath()
