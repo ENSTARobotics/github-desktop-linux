@@ -2,7 +2,7 @@
   "$NOTE": "NOTE: Do not edit the 'version' field, as that will cause merge conflicts with upstream. The version is set using env.APP_VERSION.",
   "name": "desktop-plus",
   "desktopName": "desktop-plus.desktop",
-  "productName": "GitHub Desktop for Linux",
+  "productName": "GitHub Desktop",
   "bundleID": "org.desktop-plus.DesktopPlus",
   "companyName": "ENSTA Robotics",
   "version": "3.6.6",

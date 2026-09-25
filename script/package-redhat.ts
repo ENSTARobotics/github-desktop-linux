@@ -68,7 +68,7 @@ const options: RedhatOptions = {
   name: 'desktop-plus',
   description:
     'GitHub Desktop for Linux, maintained by ENSTA Robotics.',
-  productName: 'GitHub Desktop for Linux',
+  productName: 'GitHub Desktop',
   productDescription:
     'GitHub Desktop for Linux, maintained by ENSTA Robotics.',
   genericName: 'Git Client',
